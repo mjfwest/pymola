@@ -2,74 +2,78 @@ grammar Modelica;
 
 //  B.2.1 Stored Definition - Within
 stored_definition :
-    ('within' name? ';')?
-    ('final'? class_definition ';')*
+    (l_within='within' l_within_name=name? ';')?
+    (l_final='final'? l_class_definition=class_definition ';')*
     ;
 
 //  B.2.2 Class Definition
 class_definition :
-    'encapsulated'? class_prefixes
-    class_specifier
+    l_encapsulated='encapsulated'?
+    l_prefixes=class_prefixes
+    l_specifier=class_specifier
     ;
 
 class_prefixes : 
-    'partial'?
+    l_partial='partial'?
     (
-        'class'
-        | 'model'
-        | 'operator'? 'record'
-        | 'block'
-        | 'expandable'? 'connector'
-        | 'type'
-        | 'package'
-        | ('pure' | 'impure')? 'operator'? 'function'
-        | 'operator'
+        l_class='class'
+        | l_class='model'
+        | l_modifier='operator'? l_class='record'
+        | l_class='block'
+        | l_modifier='expandable'? l_class='connector'
+        | l_class='type'
+        | l_class='package'
+        | l_pure=('pure' | 'impure')? l_modifier='operator'? l_class='function'
+        | l_class='operator'
     )
     ;
 
 class_specifier :
-    IDENT string_comment composition 'end' IDENT
-    | IDENT '=' base_prefix name array_subscripts?
-        class_modification? comment
-    | IDENT '=' 'enumeration' '(' (enum_list? | ':') ')' comment
-    | IDENT '=' 'der' '(' name ',' IDENT (',' IDENT )* ')' comment
-    | 'extends' IDENT class_modification? string_comment
-        composition 'end' IDENT
+    l_ident=IDENT l_string_comment_composition=string_comment composition 'end' IDENT
+    | l_ident=IDENT '=' l_base_prefix_name=base_prefix name l_array_subscripts=array_subscripts?
+        l_class_modification=class_modification? l_comment=comment
+    | l_ident=IDENT '=' l_enumeration='enumeration' '(' (l_enum_list=enum_list? | ':') ')'
+        l_comment=comment
+    | l_ident=IDENT '=' l_der='der' '(' l_der_f=name ',' l_der_t+=IDENT (',' l_der_t+=IDENT )* ')'
+        l_comment=comment
+    | l_extends='extends' l_ident=IDENT l_class_modification=class_modification?
+        l_comment=string_comment
+        l_composition=composition 'end' IDENT
     ;
 
 base_prefix :
-    type_prefix
+    l_type_prefix=type_prefix
     ;
 
 enum_list :
-    enumeration_literal (',' enumeration_literal)*
+    l_enum+=enumeration_literal (',' l_enum+=enumeration_literal)*
     ;
  
 enumeration_literal :
-    IDENT comment
+    l_ident=IDENT l_comment=comment
     ;
 
 composition :
-    element_list
+    l_elements=element_list
     (
-        'public' element_list
-        | 'protected' element_list
-        | equation_section
-        | algorithm_section
+        'public' l_public_elements+=element_list
+        | 'protected' l_protected_elements+=element_list
+        | l_equations_sections+=equation_section
+        | l_algorithm_sections+=algorithm_section
     )*
-    ( 'external' language_specification?
-        external_function_call?
-        annotation? ':')?
-    (annotation ';')?
+    ( 'external' l_external_language_specification=language_specification?
+        l_external_function_call=external_function_call?
+        l_external_annotation=annotation? ':')?
+    (l_annotation=annotation ';')?
     ;
 
 language_specification :
-    STRING
+    l_string=STRING
     ;
 
 external_function_call :
-    (component_reference '=')?
-    IDENT '(' expression_list? ')'
+    (l_component_reference=component_reference '=')?
+    l_ident=IDENT '(' l_expression_list=expression_list? ')'
     ;
 
 element_list : 
@@ -119,19 +123,19 @@ type_specifier:
     ;
 
 component_list:
-    component_declaration ( ',' component_declaration)*
+    l_components+=component_declaration ( ',' l_components+=component_declaration)*
     ;
 
 component_declaration :
-    declaration condition_attribute? comment
+    l_declaration=declaration l_condition=condition_attribute? l_comment=comment
     ;
 
 condition_attribute :
-    'if' expression
+    'if' l_expression=expression
     ;
 
 declaration :
-    IDENT array_subscripts? modification?
+    IDENT l_array_subscripts=array_subscripts? l_modification=modification?
     ;
 
 // B.2.5 Modification
@@ -359,20 +363,20 @@ factor :
     ;
 
 primary :
-    UNSIGNED_NUMBER
-    | STRING
-    | 'false'
-    | 'true'
-    | (name | 'der' | 'initial') function_call_args
-    | component_reference
-    | '(' output_expression_list ')'
-    | '[' expression_list (';' expression_list)* ']'
-    | '{' function_arguments '}'    
-    | 'end'
+    UNSIGNED_NUMBER     # primary_unsigned_number
+    | STRING            # primary_string
+    | 'false'           # primary_false
+    | 'true'            # primary_true
+    | (l_name=name | l_der='der' | l_initial='initial') function_call_args     # primary_function
+    | component_reference                               # primary_component_reference
+    | '(' output_expression_list ')'                    # primary_output_expression_list
+    | '[' expression_list (';' expression_list)* ']'    # primary_expression_list
+    | '{' function_arguments '}'                        # primary_function_argument
+    | 'end'                                             # primary_end
     ;
 
 name :
-    '.'? IDENT ('.' IDENT)*
+    l_name='.'? IDENT ('.' IDENT)*
     ;
 
 component_reference :
@@ -380,7 +384,7 @@ component_reference :
     ;
 
 function_call_args :
-    '(' function_arguments? ')'
+    '(' args=function_arguments? ')'
     ;
 
 function_arguments :
@@ -428,16 +432,17 @@ annotation :
     ;
 
 IDENT : NONDIGIT ( DIGIT | NONDIGIT )* | Q_IDENT;
+STRING :
+    '\"' (S_CHAR|S_ESCAPE)* '\"';
+UNSIGNED_NUMBER : UNSIGNED_INTEGER  ( '.' UNSIGNED_NUMBER? )* ( [eE] [+-]? UNSIGNED_INTEGER)?;
+
 fragment Q_IDENT : '\'' ( Q_CHAR | S_ESCAPE)+;
 fragment NONDIGIT : [_a-zA-Z];
-
-STRING : '\"' (S_CHAR|S_ESCAPE)* '\"';
 fragment S_CHAR : [A-Za-z\u0000-\u00FF];
 fragment Q_CHAR : NONDIGIT | DIGIT | [!#$%&()*+,-./:;<>=?@[\]^{}|! ];
 fragment S_ESCAPE : [\'\"\?\\\a\b\f\n\r\t\v];
 fragment DIGIT :  [0-9];
 fragment UNSIGNED_INTEGER : DIGIT+;
-UNSIGNED_NUMBER : UNSIGNED_INTEGER  ( '.' UNSIGNED_NUMBER? )* ( [eE] [+-]? UNSIGNED_INTEGER)?;
 
 COMMENT :
     ('/' '/' .*? '\n' | '/*' .*? '*/') -> channel(HIDDEN)

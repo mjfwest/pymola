@@ -10,6 +10,8 @@ from generated.ModelicaLexer import ModelicaLexer
 from generated.ModelicaParser import ModelicaParser
 from generated.ModelicaListener import ModelicaListener
 import argparse
+import re
+from pprint import pprint
 
 #pylint: disable=invalid-name, no-self-use, missing-docstring
 
@@ -37,83 +39,48 @@ class TraceListener(ModelicaListener):
               ", LT(1)=" + self._parser._input.LT(1).text)
 
 
-class SympyPrinter(ModelicaListener):
+class DictConverter(ModelicaListener):
 
     def __init__(self):
-        self._equations = []
-        self._variables = []
-        print ('Hello')
+        self.tree_property = {}
+        self.d = None;
+
+    def getValue(self, node):
+        return self.tree_property[node]
+
+    def setValue(self, node, value):
+        self.tree_property[node] = value
 
     def exitEveryRule(self, ctx):
-        # pprint(ctx.__dict__)
-        depth = ctx.depth()
-        # print('-'*depth)
-        # pprint(ctx.__dict__)
-        # pprint(ctx.parser.__dict__)
-        #print(ctx.name)
-        ctx.value = 1
-        # print('-'*depth, ctx.getText())
+        val = {}
+        d_ctx = dict(ctx.__dict__)
+        for key in d_ctx.keys():
+            if re.match('l_.*', key):
+                data = None
+                key_name = key[2:]
+                try:
+                    # see if dict already has value for child
+                    data = self.getValue(d_ctx[key])
+                except KeyError as e:
+                    try:
+                        # no value in dict, see if token and has text
+                        data = d_ctx[key].text
+                    except AttributeError as e:
+                        if d_ctx[key] is None:
+                            data = None
+                except TypeError as e:
+                    # this is a list, hanlde appropriately
+                    data = d_ctx[key]
 
-    def exitElementList(self, ctx):
-        print ('element list:', ctx.getText())
-        ctx.value = ctx.getText()
- 
-    def exitEquation_section(self, ctx):
-        # print ('equation section:', ctx.getText())
-        # ctx.value = ctx.getText()
-        pass
+                if data is not None:
+                    val[key_name] = data
+                else:
+                    val[key_name] = data
 
-    def exitAlgorithm_section(self, ctx):
-        # print ('algorithm section:', ctx.getText())
-        # ctx.value = ctx.getText()
-        pass
-
-    def exitEquation(self, ctx):
-        # print ('equation:', ctx.getText())
-        pass
-
-    def exitExpression(self, ctx):
-        pass
-        # print('expression: ', ctx.getText())
-
-    def exitLogical_factor(self, ctx):
-        # print('logical factor', ctx.getText())
-        pass
+        self.setValue(ctx, val)
 
     def exitStored_definition(self, ctx):
-        pass
-
-    def exitClass_definition(self, ctx):
-        pass
-
-    def exitClass_prefixes(self, ctx):
-        pass
-
-    def exitPrimary(self, ctx):
-        ctx.value = ctx.getText()
-        print('primary')
-        print('\ttext:', ctx.getText())
-        print('\tval:', ctx.value)
-
-    def exitTerm(self, ctx):
-        ctx.value = ctx.factors[0].value
-        for i in range(1, len(ctx.factors)):
-            ctx.value += ctx.ops[i-1].value * ctx.factors[i].value
-        print('term')
-        print('\ttext:', ctx.getText())
-        print('\tval:', ctx.value)
-
-    def exitFactor(self, ctx):
-        print('factor text:', ctx.getText())
-        print('base text:', ctx.base.getText())
-        print('base value:', ctx.base.value)
-        base = ctx.base.value
-        print('base:', base)
-        if ctx.exp:
-            exp = ctx.exp.value
-            ctx.value = "{:s}**{:s}".format(base, exp)
-        else:
-            ctx.value = "{:s}".format(ctx.base.getText())
+        self.d = self.getValue(ctx.children[0])
 
 def main(argv):
     #pylint: disable=unused-argument
@@ -127,9 +94,11 @@ def main(argv):
     parser = ModelicaParser(stream)
     tree = parser.stored_definition()
     # print(tree.toStringTree(recog=parser))
-    sympyPrinter = SympyPrinter()
+    dictConverter = DictConverter()
     walker = antlr4.ParseTreeWalker()
-    walker.walk(sympyPrinter, tree)
+    walker.walk(dictConverter, tree)
+
+    pprint(dictConverter.d)
 
     # trace = TraceListener(parser)
     # walker.walk(trace, tree)

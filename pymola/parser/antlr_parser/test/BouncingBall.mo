@@ -1,4 +1,4 @@
-model BouncingBall "the bouncing ball model"
+partial model BouncingBall "the bouncing ball model"
     parameter Real g=9.81; //gravitational acc.
     parameter Real c=0.90; //elasticity constant.
     Real height(start=10), velocity(start=0);
