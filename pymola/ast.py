@@ -4,7 +4,7 @@ Modelica AST definitions
 """
 from __future__ import print_function, absolute_import, division, print_function, unicode_literals
 
-import copy
+import pickle
 import json
 from enum import Enum
 from typing import List, Union, Dict
@@ -459,8 +459,8 @@ def merge_component_ref(a: ComponentRef, b: ComponentRef) -> ComponentRef:
     :return: component reference, with b appended to a.
     """
 
-    a = copy.deepcopy(a)
-    b = copy.deepcopy(b)  # Not strictly necessary
+    a = copy_fast(a)
+    b = copy_fast(b)  # Not strictly necessary
 
     n = a
     while n.child:
@@ -483,3 +483,14 @@ def component_ref_to_tuple(c: ComponentRef) -> tuple:
         return (c.name, ) + component_ref_to_tuple(c.child[0])
     else:
         return (c.name, )
+
+
+def copy_fast(obj: Node) -> Node:
+    """
+    Make a copy of the Node using pickle. We do not need the extra generality
+    that deepcopy provides, so we can use the much faster pickle loads/dumps
+    combination.
+    :param obj: Node/object to be copied
+    :return: copy of Node/object
+    """
+    return pickle.loads(pickle.dumps(obj, -1))
