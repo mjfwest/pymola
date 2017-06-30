@@ -7,6 +7,7 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 
 import pickle
 import logging
+import copy # TODO
 import sys
 from collections import OrderedDict
 from typing import Union
@@ -286,7 +287,10 @@ def flatten_class(root: ast.Collection, orig_class: ast.Class, instance_name: st
             flat_class.symbols[sym.name] = sym
         else:
             try:
-                c = root.find_class(sym.type)
+                # TODO use find_class on class
+                c = extended_orig_class.classes.get(sym.type.name, None)
+                if c is None:
+                    c = root.find_class(sym.type)
             except KeyError:
                 # append original symbol to flat class
                 flat_class.symbols[sym.name] = sym
@@ -316,11 +320,15 @@ def flatten_class(root: ast.Collection, orig_class: ast.Class, instance_name: st
                 # we keep connectors in the class hierarchy, as we may refer to them further
                 # up using connect() clauses
                 if c.type == 'connector':
+                    # Cache connector type for later, when creating connections.
+                    sym._connector_type = c
                     flat_class.symbols[sym.name] = sym
 
     # now resolve all references inside the symbol definitions
     for sym_name, sym in flat_class.symbols.items():
         flat_sym = flatten_component_refs(root, flat_class, sym, instance_prefix, inplace=True)
+        if hasattr(sym, '_connector_type'):
+            flat_sym._connector_type = sym._connector_type
         flat_class.symbols[sym_name] = flat_sym
 
     # for all equations in original class
@@ -335,9 +343,14 @@ def flatten_class(root: ast.Collection, orig_class: ast.Class, instance_name: st
             sym_right = root.find_symbol(flat_class, flat_equation.right)
 
             try:
-                class_left = root.find_class(sym_left.type)
+                class_left = getattr(sym_left, '_connector_type', None)
+                if class_left is None:
+                    class_left = root.find_class(sym_left.type)
+
                 # noinspection PyUnusedLocal
-                class_right = root.find_class(sym_right.type)
+                class_right = getattr(sym_right, '_connector_type', None)
+                if class_right is None:
+                    class_right = root.find_class(sym_right.type)
             except KeyError:
                 primary_types = ['Real']
                 if sym_left.type.name not in primary_types or sym_right.type.name not in primary_types:
@@ -441,7 +454,8 @@ def pull_extends(root: ast.Collection, orig_class: ast.Class):
             sym.visibility = min(sym.visibility, extends.visibility)
 
         # add parent class members symbols, equations and statements
-        extended_orig_class.symbols.update(flat_parent_class.symbols)
+        extended_orig_class.classes.update(flat_parent_class.classes)
+        extended_orig_class.symbols.update(copy.deepcopy(flat_parent_class.symbols))
         extended_orig_class.equations += flat_parent_class.equations
         extended_orig_class.initial_equations += flat_parent_class.initial_equations
         extended_orig_class.statements += flat_parent_class.statements
@@ -450,7 +464,8 @@ def pull_extends(root: ast.Collection, orig_class: ast.Class):
         # carry out modifications
         extended_orig_class = modify_class(root, extended_orig_class, extends.class_modification, inplace=True)
 
-    extended_orig_class.symbols.update(orig_class.symbols)
+    extended_orig_class.classes.update(orig_class.classes)
+    extended_orig_class.symbols.update(copy.deepcopy(orig_class.symbols)) # TODO temporary workaround
     extended_orig_class.equations += orig_class.equations
     extended_orig_class.initial_equations += orig_class.initial_equations
     extended_orig_class.statements += orig_class.statements
@@ -491,9 +506,7 @@ def modify_class(root: ast.Collection, class_or_sym: Union[ast.Class, ast.Symbol
                 orig_sym.__dict__.update(new_sym.__dict__)
         elif isinstance(argument, ast.ShortClassDefinition):
             for s in class_or_sym.symbols.values():
-                if len(s.type.child) == 0 and s.type.name == argument.name:
-                    s.type = argument.component
-                    # TODO class modifications to short class definition
+                class_or_sym.classes[argument.name] = root.find_class(argument.component)
         else:
             raise Exception('Unsupported class modification argument {}'.format(argument))
     return class_or_sym
@@ -694,12 +707,7 @@ def flatten(root: ast.Collection, class_name: str) -> ast.File:
 
     # strip connector symbols
     for i, sym in list(flat_class.symbols.items()):
-        try:
-            # noinspection PyUnusedLocal
-            c = root.find_class(sym.type)
-        except KeyError:
-            pass
-        else:
+        if hasattr(sym, '_connector_type'):
             del flat_class.symbols[i]
 
     # annotate states
