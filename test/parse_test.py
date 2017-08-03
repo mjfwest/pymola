@@ -187,5 +187,56 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(func_f.statements[0].right.operands[0].operator,
                          'Level1.Level2.Level3.TestPackage.times2')
 
+    @unittest.expectedFailure
+    def test_nested_symbol_modification(self):
+        with open(os.path.join(TEST_DIR, 'NestedSymbolModification.mo'), 'r') as f:
+            txt = f.read()
+        ast_tree = parser.parse(txt)
+
+        class_name = 'E'
+        comp_ref = ast.ComponentRef.from_string(class_name)
+
+        flat_tree = tree.flatten(ast_tree, comp_ref)
+
+        self.assertEqual(flat_tree.classes['E'].symbols['c.x'].nominal.value, 2.0)
+
+    @unittest.expectedFailure
+    def test_extends_redeclareable(self):
+        with open(os.path.join(TEST_DIR, 'ExtendsRedeclareable.mo'), 'r') as f:
+            txt = f.read()
+        ast_tree = parser.parse(txt)
+
+        class_name = 'E'
+        comp_ref = ast.ComponentRef.from_string(class_name)
+
+        flat_tree = tree.flatten(ast_tree, comp_ref)
+
+        self.assertIn('z.y', flat_tree.classes['E'].symbols)
+        self.assertEqual(flat_tree.classes['E'].symbols['z.y'].nominal.value, 2.0)
+
+    @unittest.expectedFailure
+    def test_redeclare_nested(self):
+        with open(os.path.join(TEST_DIR, 'RedeclareNestedClass.mo'), 'r') as f:
+            txt = f.read()
+
+        with self.assertRaises(Exception):
+            ast_tree = parser.parse(txt)
+
+    # FIXME: We need a proper class-tree/instance-tree before getting this test
+    @unittest.expectedFailure
+    def test_extends_order(self):
+        with open(os.path.join(TEST_DIR, 'ExtendsOrder.mo'), 'r') as f:
+            txt = f.read()
+        ast_tree = parser.parse(txt)
+
+        class_name = 'M'
+        comp_ref = ast.ComponentRef.from_string(class_name)
+
+        flat_tree = tree.flatten(ast_tree, comp_ref)
+
+        self.assertEqual('M.at.x', 0.0)
+        self.assertEqual('M.at.m', 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
