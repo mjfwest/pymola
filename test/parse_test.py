@@ -227,7 +227,6 @@ class ParseTest(unittest.TestCase):
         self.assertIn('z.y', flat_tree.classes['E'].symbols)
         self.assertEqual(flat_tree.classes['E'].symbols['z.y'].nominal.value, 2.0)
 
-    @unittest.expectedFailure
     def test_redeclare_nested(self):
         with open(os.path.join(TEST_DIR, 'RedeclareNestedClass.mo'), 'r') as f:
             txt = f.read()
