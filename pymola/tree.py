@@ -429,7 +429,8 @@ def modify_class(root: ast.Collection, class_or_sym: Union[ast.Class, ast.Symbol
     :return:
     """
     class_or_sym = copy.deepcopy(class_or_sym)
-    for argument in modification.arguments:
+    for class_mod_argument in modification.arguments:
+        argument = class_mod_argument.value
         if isinstance(argument, ast.ElementModification):
             if argument.component.name in ast.Symbol.ATTRIBUTES:
                 setattr(class_or_sym, argument.component.name, argument.modifications[0])
