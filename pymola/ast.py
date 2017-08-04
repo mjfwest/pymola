@@ -69,8 +69,8 @@ class Node(object):
                 raise KeyError('{:s} not valid arg'.format(key))
             self.__dict__[key] = kwargs[key]
 
-    def __repr__(self):
-        return json.dumps(self.to_json(self), indent=2, sort_keys=True)
+    # def __repr__(self):
+    #     return json.dumps(self.to_json(self), indent=2, sort_keys=True)
 
     @classmethod
     def to_json(cls, var):
@@ -86,7 +86,7 @@ class Node(object):
             res = var
         return res
 
-    __str__ = __repr__
+    # __str__ = __repr__
 
 
 class Primary(Node):
@@ -388,6 +388,7 @@ class Class(Node):
         self.initial_statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.parent = None # type: Class
+        self.root = None # type: Tree
         super().__init__(**kwargs)
 
     def find_class(self, component_ref: ComponentRef, return_ref=False):
