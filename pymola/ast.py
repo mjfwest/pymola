@@ -387,125 +387,26 @@ class Class(Node):
         self.equations = []  # type: List[Union[Equation, ForEquation, ConnectClause]]
         self.initial_statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
-        self.within = []  # type: List[ComponentRef]
+        self.parent = None # type: Class
         super().__init__(**kwargs)
 
-
-class File(Node):
-    """
-    Represents a .mo file for use in pre-processing before flattening to a single class.
-    """
-
-    def __init__(self, **kwargs):
-        self.within = []  # type: List[ComponentRef]
-        self.classes = OrderedDict()  # type: OrderedDict[str, Class]
-        super().__init__(**kwargs)
-
-
-class Collection(Node):
-    """
-    A list of modelica files, used in pre-processing packages etc. before flattening
-    to a single class.
-    """
-
-    def __init__(self, **kwargs):
-        self.files = []  # type: List[File]
-        super().__init__(**kwargs)
-
-        # TODO: Should be directly build the class_lookup, or wait until the first call to find_class?
-        self._class_lookup = None
-
-    def _build_class_lookup_for_class(self, c, within):
-        if within:
-            full_name = ComponentRef.concatenate(within, ComponentRef(name=c.name))
-        else:
-            full_name = ComponentRef(name=c.name)
-
-        # FIXME: Do we have to convert to string?
-        self._class_lookup[full_name.to_tuple()] = c
-
-        if within:
-            within = ComponentRef.concatenate(within, ComponentRef(name=c.name))
-        else:
-            within = ComponentRef(name=c.name)
-        for nested_c in c.classes.values():
-            self._build_class_lookup_for_class(nested_c, within)
-
-    def _build_class_lookup(self):
-        self._class_lookup = {}
-
-        for f in self.files:
-            within = f.within[0] if f.within else None
-            for c in f.classes.values():
-                self._build_class_lookup_for_class(c, within)
-
-    def extend(self, other):
-        self.files.extend(other.files)
-
-    def find_class(self, component_ref: ComponentRef, within: list = None, check_builtin_classes=False, return_ref=False):
-        if check_builtin_classes:
-            if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
-                c = Class(name=component_ref.name)
-                c.type = "__builtin"
-
-                cref = ComponentRef(name=component_ref.name)
-                s = Symbol(name="__value", type=cref)
-                c.symbols[s.name] = s
-
-                if return_ref:
-                    return c, cref
-                else:
-                    return c
-
-        if self._class_lookup is None:
-            self._build_class_lookup()
-
-        # TODO: Support lookups starting with a dot. These are lookups in the root node (i.e. within not used).
-        # Odds are that these types of lookups are not parsed yet. We would expet an empty first name, with a non-empty child.
-
-        # Lookup the referenced class, walking up the tree from the current
-        # node until the root node.
-        c = None
-
-        if within:
-            within_tuple = within[0].to_tuple()
-        else:
-            within_tuple = tuple()
-
-        cref_tuple = component_ref.to_tuple()
-
-        prev_tuple = None
-
-        while c is None:
-            c = self._class_lookup.get(within_tuple + cref_tuple, None)
-
-            prev_tuple = within_tuple + cref_tuple
-
-            if within_tuple:
-                within_tuple = within_tuple[:-1]
-            else:
-                # Finished traversing up the tree all the way to the root. No
-                # more lookups possible.
-                break
-
-        if c is None:
-            # Class not found
-            if component_ref.name in ("Real", "Integer", "Boolean", "String", "Modelica", "SI"):
-                # FIXME: To support an "ignore" in the flattener, we raise a
-                # KeyError for what are likely to be elementary types
-                raise KeyError
-            else:
-                raise ClassNotFoundError("Could not find class {}".format(component_ref))
-
-        if return_ref:
-            return c, ComponentRef.from_tuple(prev_tuple)
-        else:
-            return c
+    def find_class(self, component_ref: ComponentRef, return_ref=False):
+        raise NotImplementedError()
 
     def find_symbol(self, node, component_ref: ComponentRef) -> Symbol:
-        sym = node.symbols[component_ref.name]
-        if len(component_ref.child) > 0:
-            node = self.find_class(sym.type)
-            return self.find_symbol(node, component_ref.child[0])
-        else:
-            return sym
+        raise NotImplementedError()
+
+    def insert(self):
+        # if compref starts with ., go to root.
+        raise NotImplementedError()
+
+class Tree(Class):
+    """
+    The root class.
+    """
+    # FIXME: We can probably just make it a class
+
+    @classmethod
+    def concatenate(*args: List['Tree']) -> 'Tree':
+        raise NotImplementedError()
+
