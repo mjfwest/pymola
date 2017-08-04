@@ -201,6 +201,19 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(flat_tree.classes['E'].symbols['c.x'].nominal.value, 2.0)
 
     @unittest.expectedFailure
+    def test_redeclare_in_extends(self):
+        with open(os.path.join(TEST_DIR, 'RedeclareInExtends.mo.mo'), 'r') as f:
+            txt = f.read()
+        ast_tree = parser.parse(txt)
+
+        class_name = 'ChannelZ'
+        comp_ref = ast.ComponentRef.from_string(class_name)
+
+        flat_tree = tree.flatten(ast_tree, comp_ref)
+
+        self.assertIn('down.Z', flat_tree.classes['E'].symbols)
+
+    @unittest.expectedFailure
     def test_extends_redeclareable(self):
         with open(os.path.join(TEST_DIR, 'ExtendsRedeclareable.mo'), 'r') as f:
             txt = f.read()
