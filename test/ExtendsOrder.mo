@@ -28,6 +28,6 @@ model M
     BT bt;
   end B;
 
-  extends A(redeclare model AT = BT); // Here we want to find M.BT, not .BT
+  extends A(redeclare model AT = BT); // Here we expect to find M.B.BT, not .BT
   extends B;
 end M;
