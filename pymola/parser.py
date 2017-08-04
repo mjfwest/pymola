@@ -639,13 +639,14 @@ def file_to_tree(f: ModelicaFile) -> ast.Tree:
     # are actually in the tree, and if not raise an exception.
     root = ast.Tree()
     root.classes.update(f.classes)
-    update_parent_refs(root)
+    update_parent_refs(root, root)
     return root
 
-def update_parent_refs(parent: ast.Class) -> None:
+def update_parent_refs(root: ast.Tree, parent: ast.Class) -> None:
     for c in parent.classes.values():
+        c.root = root
         c.parent = parent
-        update_parent_refs(c)
+        update_parent_refs(root, c)
 
 def parse(text):
     input_stream = antlr4.InputStream(text)
