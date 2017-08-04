@@ -414,6 +414,21 @@ class Class(Node):
         # if compref starts with ., go to root.
         raise NotImplementedError()
 
+    def full_reference(self):
+        names = []
+
+        c = self
+        while True:
+            names.append(c.name)
+            if c.parent is None:
+                break
+            else:
+                c = c.parent
+
+        # Exclude the root node's name (=None)
+        return ComponentRef.from_tuple(tuple(reversed(names[:-1])))
+
+
 class Tree(Class):
     """
     The root class.
