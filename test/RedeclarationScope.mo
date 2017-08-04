@@ -1,3 +1,4 @@
+// TODO: Uncertain about correctness of OMC. What do other compilers say?
 connector HQBase
     Real H;
     flow Real Q;

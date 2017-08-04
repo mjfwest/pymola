@@ -1,3 +1,4 @@
+// TODO: Uncertain about correctness of OMC. What do other compilers say?
 model F
   model A
     Real x;
@@ -16,7 +17,9 @@ model D
   extends C;
 end D;
 
-// We can redeclare all we want, but the extends processing is handled _before_ redeclarations.
+// Apparently OpenModelica (<=v12.0) handles extends clauses before redeclarations take effect.
+// It is that, or it does the lookup in the class tree instead of instance tree (which is not what the spec says).
+// Maybe try to easily allow switching between the two options?
 model E
   extends D(z.y(nominal=2), redeclare model C=F);
 end E;
