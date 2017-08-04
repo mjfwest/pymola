@@ -391,8 +391,21 @@ class Class(Node):
         self.root = None # type: Tree
         super().__init__(**kwargs)
 
-    def find_class(self, component_ref: ComponentRef, return_ref=False):
-        raise NotImplementedError()
+    def _find_class(self, component_ref: ComponentRef, search_parent=True) -> 'Class':
+        try:
+            if not component_ref.child:
+                return self.classes[component_ref.name]
+            else:
+                # Avoid infinite recursion by passing search_parent = False
+                return self.classes[component_ref.name]._find_class(component_ref.child[0], False)
+        except (KeyError, ClassNotFoundError):
+            if search_parent and self.parent is not None:
+                return self.parent._find_class(component_ref)
+            else:
+                raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
+
+    def find_class(self, component_ref: ComponentRef) -> 'Class':
+        return self._find_class(component_ref)
 
     def find_symbol(self, node, component_ref: ComponentRef) -> Symbol:
         raise NotImplementedError()
