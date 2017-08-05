@@ -548,12 +548,12 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def build_instance_tree(orig_class: ast.Class, modification_environment=None) -> ast.InstanceClass:
+def build_instance_tree(orig_class: ast.Class, modification_environment=None, parent=None) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
         type=orig_class.type,
-        parent=orig_class.parent,
-        root=orig_class.root
+        parent=parent,
+        root=parent.root if parent is not None else None
     )
 
     for extends in orig_class.extends:
@@ -623,7 +623,7 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None) ->
                 arg.scope = extended_orig_class
             sub_class_modification.arguments.append(arg)
 
-        extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification)
+        extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification, extended_orig_class)
 
     return extended_orig_class
 
