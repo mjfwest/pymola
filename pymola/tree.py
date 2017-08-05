@@ -548,7 +548,56 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def flatten(root: ast.Tree, component_ref: ast.ComponentRef) -> ast.Class:
+def pull_extends(orig_class: ast.Class):
+    extended_orig_class = ast.InstanceClass(
+        name=orig_class.name,
+        type=orig_class.type,
+        parent = orig_class.parent,
+        root = orig_class.root
+    )
+
+    # TODO: Redeclaration of self takes effect, or not?
+    # See RedeclarationScope.mo example.
+    # if class_.class_modification:
+    #    apply redeclares
+
+    for extends in orig_class.extends:
+        c = orig_class.find_class(extends.component)
+
+        extended_orig_class.classes.update(c.classes)
+        extended_orig_class.symbols.update(c.symbols)
+        extended_orig_class.equations += c.equations
+        extended_orig_class.initial_equations += c.initial_equations
+        extended_orig_class.statements += c.statements
+        extended_orig_class.initial_statements += c.initial_statements
+        extended_orig_class.functions.update(c.functions)
+
+        extended_orig_class.modification_environment.arguments.extend(extends.class_modification.arguments)
+
+        # set visibility
+        for sym in extended_orig_class.symbols.values():
+            if sym.visibility > extends.visibility:
+                sym.visibility = extends.visibility
+
+    extended_orig_class.classes.update(orig_class.classes)
+    extended_orig_class.symbols.update(orig_class.symbols)
+    extended_orig_class.equations += orig_class.equations
+    extended_orig_class.initial_equations += orig_class.initial_equations
+    extended_orig_class.statements += orig_class.statements
+    extended_orig_class.initial_statements += orig_class.initial_statements
+    extended_orig_class.functions.update(orig_class.functions)
+
+    # Redeclarations take effect
+    for class_mod_argument in extended_orig_class.modification_environment.arguments:
+        if not class_mod_argument.redeclare:
+            continue
+        argument = class_mod_argument.value
+        extended_orig_class.classes[argument.name] = extended_orig_class.find_class(argument.component)
+
+    return extended_orig_class
+
+
+def flatten(orig_class: ast.Class) -> ast.Class:
     """
     This function takes a Tree and flattens it so that all subclasses instances
     are replaced by the their equations and symbols with name mangling
@@ -557,4 +606,5 @@ def flatten(root: ast.Tree, component_ref: ast.ComponentRef) -> ast.Class:
     :param class_name: The class that we want to create a flat model for
     :return: flat_class, a Class containing the flattened class
     """
-    return ast.Class()
+
+    return pull_extends(orig_class)

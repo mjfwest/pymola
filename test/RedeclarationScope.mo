@@ -1,4 +1,6 @@
 // TODO: Uncertain about correctness of OMC. What do other compilers say?
+// The specification disagrees. See "Recursive instantiation of components", line "This performs lookup for D in M" in the discussion of the example.
+// Or is that only because it's a component, and not an extends?
 connector HQBase
     Real H;
     flow Real Q;

@@ -429,6 +429,16 @@ class Class(Node):
         return ComponentRef.from_tuple(tuple(reversed(names[:-1])))
 
 
+class InstanceClass(Class):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # self.unnamed = []
+        # self.orig_class = None
+        # self.initialized = False
+        self.modification_environment = ClassModification()
+
+
 class Tree(Class):
     """
     The root class.
