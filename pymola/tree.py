@@ -595,11 +595,18 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None) ->
         if not class_mod_argument.redeclare:
             continue
         argument = class_mod_argument.value
-        extended_orig_class.classes[argument.name] = extended_orig_class.find_class(argument.component)
-
-    # TODO: Implement and test redeclaration of symbol
+        if isinstance(argument, ast.ShortClassDefinition):
+            extended_orig_class.classes[argument.name] = extended_orig_class.find_class(argument.component)
+        elif isinstance(argument, ast.ComponentClause):
+            # Redeclaration of symbols
+            for s in argument.symbol_list:
+                extended_orig_class.symbols[s.name].type = s.type
+        else:
+            raise Exception("Unknown redeclaration type")
 
     extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
+
+    # Assert: Only ast.ElementModification type modifications left. No more ComponentClause or ShortClassDefinitions (which are both redeclares).
 
     # Merge/pass along modifications for classes
     for class_name, c in extended_orig_class.classes.items():
