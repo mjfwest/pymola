@@ -556,11 +556,6 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None) ->
         root=orig_class.root
     )
 
-    # TODO: Redeclaration of self takes effect, or not?
-    # See RedeclarationScope.mo example.
-    # if class_.class_modification:
-    #    apply redeclares
-
     for extends in orig_class.extends:
         c = orig_class.find_class(extends.component, check_builtin_classes=True)
 
@@ -602,9 +597,11 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None) ->
         argument = class_mod_argument.value
         extended_orig_class.classes[argument.name] = extended_orig_class.find_class(argument.component)
 
+    # TODO: Implement and test redeclaration of symbol
+
     extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
 
-    # Merge/pass along modifications
+    # Merge/pass along modifications for classes
     for class_name, c in extended_orig_class.classes.items():
         sub_class_modification = ast.ClassModification()
 
@@ -614,13 +611,11 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None) ->
         # Remove from current class's modification environment
         extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sub_class_arguments]
 
-        assert len(sub_class_arguments) == 1, "Cannot declare more than one element modification for the same class"
-
-        for arg in sub_class_arguments[0].value.modifications[0].arguments:
-            arg.scope = extended_orig_class
+        for arg in sub_class_arguments:
+            if arg.scope is None:
+                arg.scope = extended_orig_class
             sub_class_modification.arguments.append(arg)
 
-        extended_orig_class.modification_environment.arguments
         extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification)
 
     return extended_orig_class
