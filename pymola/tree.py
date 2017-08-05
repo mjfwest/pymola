@@ -548,7 +548,7 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def pull_extends(orig_class: ast.Class):
+def flatten_me(orig_class: ast.Class) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
         type=orig_class.type,
@@ -594,6 +594,11 @@ def pull_extends(orig_class: ast.Class):
         argument = class_mod_argument.value
         extended_orig_class.classes[argument.name] = extended_orig_class.find_class(argument.component)
 
+    extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
+
+    for class_name, c in extended_orig_class.classes.items():
+        extended_orig_class.classes[class_name] = flatten_me(c)
+
     return extended_orig_class
 
 
@@ -607,4 +612,4 @@ def flatten(orig_class: ast.Class) -> ast.Class:
     :return: flat_class, a Class containing the flattened class
     """
 
-    return pull_extends(orig_class)
+    return flatten_me(orig_class)
