@@ -562,7 +562,12 @@ def flatten_me(orig_class: ast.Class) -> ast.InstanceClass:
     #    apply redeclares
 
     for extends in orig_class.extends:
-        c = orig_class.find_class(extends.component)
+        c = orig_class.find_class(extends.component, check_builtin_classes=True)
+
+        if c.type == "__builtin":
+            if len(orig_class.extends) > 1:
+                raise Exception("When extending a built-in class (Real, Integer, ...), extending from other as well classes is not allowed.")
+            extended_orig_class.type = c.type
 
         extended_orig_class.classes.update(c.classes)
         extended_orig_class.symbols.update(c.symbols)

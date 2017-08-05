@@ -404,7 +404,20 @@ class Class(Node):
             else:
                 raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
 
-    def find_class(self, component_ref: ComponentRef) -> 'Class':
+    def find_class(self, component_ref: ComponentRef, check_builtin_classes=False) -> 'Class':
+        if check_builtin_classes:
+            if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
+                c = Class(name=component_ref.name)
+                c.type = "__builtin"
+                c.parent = self.root
+                c.root = self.root
+
+                cref = ComponentRef(name=component_ref.name)
+                s = Symbol(name="__value", type=cref)
+                c.symbols[s.name] = s
+
+                return c
+
         return self._find_class(component_ref)
 
     def find_symbol(self, node, component_ref: ComponentRef) -> Symbol:
