@@ -548,12 +548,12 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def build_instance_tree(orig_class: ast.Class) -> ast.InstanceClass:
+def build_instance_tree(orig_class: ast.Class, modification_environment=None) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
         type=orig_class.type,
-        parent = orig_class.parent,
-        root = orig_class.root
+        parent=orig_class.parent,
+        root=orig_class.root
     )
 
     # TODO: Redeclaration of self takes effect, or not?
@@ -592,6 +592,9 @@ def build_instance_tree(orig_class: ast.Class) -> ast.InstanceClass:
     extended_orig_class.initial_statements += orig_class.initial_statements
     extended_orig_class.functions.update(orig_class.functions)
 
+    if modification_environment is not None:
+        extended_orig_class.modification_environment.arguments.extend(modification_environment.arguments)
+
     # Redeclarations take effect
     for class_mod_argument in extended_orig_class.modification_environment.arguments:
         if not class_mod_argument.redeclare:
@@ -601,8 +604,24 @@ def build_instance_tree(orig_class: ast.Class) -> ast.InstanceClass:
 
     extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
 
+    # Merge/pass along modifications
     for class_name, c in extended_orig_class.classes.items():
-        extended_orig_class.classes[class_name] = build_instance_tree(c)
+        sub_class_modification = ast.ClassModification()
+
+        sub_class_arguments = [x for x in extended_orig_class.modification_environment.arguments
+            if isinstance(x.value, ast.ElementModification) and x.value.component.name == class_name]
+
+        # Remove from current class's modification environment
+        extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sub_class_arguments]
+
+        assert len(sub_class_arguments) == 1, "Cannot declare more than one element modification for the same class"
+
+        for arg in sub_class_arguments[0].value.modifications[0].arguments:
+            arg.scope = extended_orig_class
+            sub_class_modification.arguments.append(arg)
+
+        extended_orig_class.modification_environment.arguments
+        extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification)
 
     return extended_orig_class
 
