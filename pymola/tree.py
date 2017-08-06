@@ -781,7 +781,7 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
 
     return flat_class
 
-def flatten(orig_class: ast.Class) -> ast.Class:
+def flatten(orig_class: ast.Class, relative_path=None) -> ast.Class:
     """
     This function takes a Tree and flattens it so that all subclasses instances
     are replaced by the their equations and symbols with name mangling
@@ -790,6 +790,8 @@ def flatten(orig_class: ast.Class) -> ast.Class:
     :param class_name: The class that we want to create a flat model for
     :return: flat_class, a Class containing the flattened class
     """
+    if relative_path is not None:
+        orig_class = orig_class.find_class(relative_path, return_reference=True)
 
     instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
 
@@ -800,4 +802,8 @@ def flatten(orig_class: ast.Class) -> ast.Class:
 
     flat_class = flatten_symbols(instance_tree)
 
-    return flat_class
+    # Put class in root
+
+    root = ast.Class()
+    root.classes[orig_class.name] = flat_class
+    return root
