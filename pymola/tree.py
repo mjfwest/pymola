@@ -650,7 +650,7 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
     return extended_orig_class
 
 
-def flatten_instance_tree(class_: ast.InstanceClass, instance_name='', modification=ast.ClassModification()) -> ast.Class:
+def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     # Recursive symbol flattening
 
     flat_class = ast.Class(
@@ -666,23 +666,30 @@ def flatten_instance_tree(class_: ast.InstanceClass, instance_name='', modificat
 
     # for all symbols in the original class
     for sym_name, sym in class_.symbols.items():
-        flat_sym = flatten_symbol(sym, instance_prefix)
-        try:
-            c = class_.find_class(sym.type)
 
-            if c.type == "__builtin":
-                flat_class.symbols[flat_sym.name] = flat_sym
-                for att in flat_sym.ATTRIBUTES + ["type"]:
-                    setattr(flat_class.symbols[flat_sym.name], att, getattr(c.symbols['__value'], att))
+        sym.name = instance_prefix + sym_name
+        if instance_prefix:
+            # Strip 'input' and 'output' prefixes from nested symbols.
+            strip_keywords = ['input', 'output']
+            for strip_keyword in strip_keywords:
+                try:
+                    sym.prefixes.remove(strip_keyword)
+                except ValueError:
+                    pass
 
-                continue
+        flat_sym = sym
 
-        except ast.FoundElementaryClassError:
-            # append original symbol to flat class
+        if isinstance(sym.type, ast.ComponentRef):
+            # Elementary type
             flat_class.symbols[flat_sym.name] = flat_sym
+        elif sym.type.type == "__builtin":
+            flat_class.symbols[flat_sym.name] = flat_sym
+            for att in flat_sym.ATTRIBUTES + ["type"]:
+                setattr(flat_class.symbols[flat_sym.name], att, getattr(c.symbols['__value'], att))
+            continue
         else:
             # recursively call flatten on the contained class
-            flat_sub_class = flatten_instance_tree(c, flat_sym.name, flat_sym.class_modification)
+            flat_sub_class = flatten_symbols(sym.type, flat_sym.name)
 
             # carry class dimensions over to symbols
             for flat_class_symbol in flat_sub_class.symbols.values():
@@ -707,9 +714,14 @@ def flatten_instance_tree(class_: ast.InstanceClass, instance_name='', modificat
 
             # we keep connectors in the class hierarchy, as we may refer to them further
             # up using connect() clauses
-            if c.type == 'connector':
-                flat_sym.__connector_type = c
-                flat_class.symbols[flat_sym.name] = flat_sym
+            # if c.type == 'connector':
+            #     flat_sym.__connector_type = c
+            #     flat_class.symbols[flat_sym.name] = flat_sym
+
+    # now resolve all references inside the symbol definitions
+    # for sym_name, sym in flat_class.symbols.items():
+    #     flat_sym = flatten_component_refs(root, flat_class, sym, instance_prefix)
+    #     flat_class.symbols[sym_name] = flat_sym
 
     return flat_class
 
@@ -723,13 +735,13 @@ def flatten(orig_class: ast.Class) -> ast.Class:
     :return: flat_class, a Class containing the flattened class
     """
 
-    instance_tree = build_instance_tree(orig_class)
+    instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
 
-
+    # instance_tree = symbol_load_class(instance_tree)
     # Optimization: Merge modifications of elementary types (type =
     # __builtin). This is possible because we know they are the lowest level
     # we go.
 
-    flat_class = flatten_instance_tree(instance_tree)
+    flat_class = flatten_symbols(instance_tree)
 
     return flat_class
