@@ -606,7 +606,10 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
 
     extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
 
-    # Assert: Only ast.ElementModification type modifications left. No more ComponentClause or ShortClassDefinitions (which are both redeclares).
+    # Assert: Only ast.ElementModification type modifications left in the
+    # class's modification environment. No more ComponentClause or
+    # ShortClassDefinitions (which are both redeclares). There are still
+    # possible redeclares in symbols though.
 
     # Merge/pass along modifications for classes
     for class_name, c in extended_orig_class.classes.items():
@@ -624,6 +627,25 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
             sub_class_modification.arguments.append(arg)
 
         extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification, extended_orig_class)
+
+    for sym_name, sym in extended_orig_class.symbols.items():
+        class_name = sym.type
+
+        if isinstance(sym.type, ast.InstanceClass):
+            continue
+
+        try:
+            c = extended_orig_class.find_class(sym.type)
+        except ast.FoundElementaryClassError:
+            pass  # Do nothing
+        else:
+            if sym.class_modification:
+                for arg in sym.class_modification.arguments:
+                    if arg.scope is None:
+                        arg.scope = extended_orig_class
+
+            sym.type = build_instance_tree(c, sym.class_modification, c.parent)
+            sym.class_modification = None
 
     return extended_orig_class
 
