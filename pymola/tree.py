@@ -270,8 +270,7 @@ class ComponentRefFlattener(TreeListener):
     one of the equations contains a derivative of the symbol)
     """
 
-    def __init__(self, root: ast.Tree, container: ast.Class, instance_prefix: str):
-        self.root = root
+    def __init__(self, container: ast.Class, instance_prefix: str):
         self.container = container
         self.instance_prefix = instance_prefix
         self.depth = 0
@@ -292,13 +291,7 @@ class ComponentRefFlattener(TreeListener):
 
         # If the flattened name exists in the container, use it.
         # Otherwise, skip this reference.
-        try:
-            self.root.find_symbol(self.container, ast.ComponentRef(name=new_name))
-        except KeyError:
-            # The component was not found in the container.  We leave this
-            # reference alone.
-            self.cutoff_depth = self.depth
-        else:
+        if new_name in self.container.symbols:
             tree.name = new_name
             c = tree
             while len(c.child) > 0:
@@ -306,6 +299,10 @@ class ComponentRefFlattener(TreeListener):
                 if len(c.indices) > 0:
                     tree.indices += c.indices
             tree.child = []
+        else:
+            # The component was not found in the container.  We leave this
+            # reference alone.
+            self.cutoff_depth = self.depth
 
     def exitComponentRef(self, tree: ast.ComponentRef):
         self.depth -= 1
@@ -314,12 +311,11 @@ class ComponentRefFlattener(TreeListener):
 
 
 def flatten_component_refs(
-        root: ast.Tree, container: ast.Class,
+        container: ast.Class,
         expression: ast.Union[ast.ConnectClause, ast.AssignmentStatement, ast.ForStatement, ast.Symbol],
         instance_prefix: str) -> ast.Union[ast.ConnectClause, ast.AssignmentStatement, ast.ForStatement, ast.Symbol]:
     """
     Flattens component refs in a tree
-    :param root: root node
     :param container: class
     :param expression: original expression
     :param instance_prefix: prefix for instance
@@ -329,7 +325,7 @@ def flatten_component_refs(
     expression_copy = copy.deepcopy(expression)
 
     w = TreeWalker()
-    w.walk(ComponentRefFlattener(root, container, instance_prefix), expression_copy)
+    w.walk(ComponentRefFlattener(container, instance_prefix), expression_copy)
 
     return expression_copy
 
@@ -496,15 +492,15 @@ class FunctionExpander(TreeListener):
     Listener to extract functions
     """
 
-    def __init__(self, root: ast.Tree, function_set: set):
-        self.root = root
+    def __init__(self, node: ast.Tree, function_set: set):
+        self.node = node
         self.function_set = function_set
         super().__init__()
 
     def exitExpression(self, tree: ast.Expression):
         if isinstance(tree.operator, ast.ComponentRef):
             try:
-                function_class = self.root.find_class(tree.operator)
+                function_class = self.node.find_class(tree.operator)
 
                 full_name = str(function_class.full_reference())
 
@@ -516,13 +512,13 @@ class FunctionExpander(TreeListener):
 
 
 # noinspection PyUnusedLocal
-def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, function_set: OrderedDict) -> ast.Expression:
+def fully_scope_function_calls(node: ast.Tree, expression: ast.Expression, function_set: OrderedDict) -> ast.Expression:
     """
     Turns the function references in this expression into fully scoped
     references (e.g. relative to absolute). The component references of all
     referenced functions are put into the functions set.
 
-    :param root: collection for performing symbol lookup etc.
+    :param node: collection for performing symbol lookup etc.
     :param container: class
     :param expression: original expression
     :param function_set: output of function component references
@@ -531,7 +527,7 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     expression_copy = copy.deepcopy(expression)
 
     w = TreeWalker()
-    w.walk(FunctionExpander(root, function_set), expression_copy)
+    w.walk(FunctionExpander(node, function_set), expression_copy)
     return expression_copy
 
 
@@ -732,10 +728,53 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
                 flat_class.symbols[flat_sym.name] = flat_sym
 
     # now resolve all references inside the symbol definitions
-    # for sym_name, sym in flat_class.symbols.items():
-    #     flat_sym = flatten_component_refs(root, flat_class, sym, instance_prefix)
-    #     flat_class.symbols[sym_name] = flat_sym
+    for sym_name, sym in flat_class.symbols.items():
+        flat_sym = flatten_component_refs(flat_class, sym, instance_prefix)
+        flat_class.symbols[sym_name] = flat_sym
 
+    # A set of component refs to functions
+    pulled_functions = OrderedDict()
+
+    # for all equations in original class
+    for equation in class_.equations:
+        # Equation returned has function calls replaced with their full scope
+        # equivalent, and it pulls out all references into the pulled_functions.
+        fs_equation = fully_scope_function_calls(class_, equation, pulled_functions)
+
+        flat_equation = flatten_component_refs(flat_class, fs_equation, instance_prefix)
+        flat_class.equations.append(flat_equation)
+        if isinstance(flat_equation, ast.ConnectClause):
+            # following section 9.2 of the Modelica spec, we treat 'inner' and 'outer' connectors differently.
+            if not hasattr(flat_equation, '__left_inner'):
+                flat_equation.__left_inner = len(equation.left.child) > 0
+            if not hasattr(flat_equation, '__right_inner'):
+                flat_equation.__right_inner = len(equation.right.child) > 0
+
+    # Create fully scoped equivalents
+    fs_initial_equations = \
+        [fully_scope_function_calls(class_, e, pulled_functions) for e in class_.initial_equations]
+    fs_statements = \
+        [fully_scope_function_calls(class_, e, pulled_functions) for e in class_.statements]
+    fs_initial_statements = \
+        [fully_scope_function_calls(class_, e, pulled_functions) for e in class_.initial_statements]
+
+    flat_class.initial_equations += \
+        [flatten_component_refs(flat_class, e, instance_prefix) for e in fs_initial_equations]
+    flat_class.statements += \
+        [flatten_component_refs(flat_class, e, instance_prefix) for e in fs_statements]
+    flat_class.initial_statements += \
+        [flatten_component_refs(flat_class, e, instance_prefix) for e in fs_initial_statements]
+
+    # TODO: Make sure we also pull in any functions called in functions in function_set
+    # TODO: Also do functions in statements, initial_statements, and initial_equations
+
+    # for f, c in pulled_functions.items():
+    #     pulled_functions[f] = flatten_class(root, c, '')
+    #     c = pulled_functions[f]
+    #     flat_class.functions.update(c.functions)
+    #     c.functions = OrderedDict()
+
+    flat_class.functions.update(pulled_functions)
 
     return flat_class
 
