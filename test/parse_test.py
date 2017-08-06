@@ -224,7 +224,6 @@ class ParseTest(unittest.TestCase):
 
         self.assertIn('down.A', flat_tree.classes['ChannelZ'].symbols)
 
-    @unittest.expectedFailure
     def test_extends_redeclareable(self):
         with open(os.path.join(TEST_DIR, 'ExtendsRedeclareable.mo'), 'r') as f:
             txt = f.read()

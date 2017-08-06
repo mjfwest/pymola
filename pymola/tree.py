@@ -550,6 +550,8 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
                 raise Exception("When extending a built-in class (Real, Integer, ...), extending from other as well classes is not allowed.")
             extended_orig_class.type = c.type
 
+        c = build_instance_tree(c, parent=c.parent)
+
         extended_orig_class.classes.update(c.classes)
         extended_orig_class.symbols.update(c.symbols)
         extended_orig_class.equations += c.equations
@@ -621,7 +623,10 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
         class_name = sym.type
 
         try:
-            c = extended_orig_class.find_class(sym.type)
+            if not isinstance(sym.type, ast.InstanceClass):
+                c = extended_orig_class.find_class(sym.type)
+            else:
+                c = sym.type
         except ast.FoundElementaryClassError:
             pass  # Do nothing
         else:
