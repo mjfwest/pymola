@@ -408,7 +408,7 @@ class Class(Node):
             else:
                 raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
 
-    def find_class(self, component_ref: ComponentRef, check_builtin_classes=False) -> 'Class':
+    def find_class(self, component_ref: ComponentRef, return_reference=False, check_builtin_classes=False) -> 'Class':
         if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
             if check_builtin_classes:
                 c = Class(name=component_ref.name)
@@ -424,7 +424,17 @@ class Class(Node):
             else:
                 raise FoundElementaryClassError()
 
-        return self._find_class(component_ref)
+        c = self._find_class(component_ref)
+
+        if not return_reference:
+            _parent, _root = c.parent, c.root
+            _orig = c
+            c.parent, c.root = None, None
+            c = copy.deepcopy(c)
+            c.parent, c.root = _parent, _root
+            _orig.parent, _orig.root = _parent, _root
+
+        return c
 
     def find_symbol(self, node, component_ref: ComponentRef) -> Symbol:
         raise NotImplementedError()
