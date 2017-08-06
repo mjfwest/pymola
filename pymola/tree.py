@@ -723,9 +723,12 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
 
             # we keep connectors in the class hierarchy, as we may refer to them further
             # up using connect() clauses
+            # TODO:
             if sym.type.type == 'connector':
-                flat_sym.__connector_type = sym.type
+                flat_sym.__connector_type = None
                 flat_class.symbols[flat_sym.name] = flat_sym
+
+            sym.type = None
 
     # now resolve all references inside the symbol definitions
     for sym_name, sym in flat_class.symbols.items():
