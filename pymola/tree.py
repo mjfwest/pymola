@@ -333,7 +333,7 @@ def flatten_component_refs(
     return expression_copy
 
 
-def expand_connectors(root: ast.Tree, node: ast.Node) -> None:
+def expand_connectors(node: ast.Node) -> None:
     # keep track of which flow variables have been connected to, and which ones haven't
     disconnected_flow_variables = OrderedDict()
     for sym in node.symbols.values():
@@ -348,20 +348,23 @@ def expand_connectors(root: ast.Tree, node: ast.Node) -> None:
     for equation in orig_equations:
         if isinstance(equation, ast.ConnectClause):
             # expand connector
-            sym_left = root.find_symbol(node, equation.left)
-            sym_right = root.find_symbol(node, equation.right)
+            assert len(equation.left.child) == 0
+            assert len(equation.right.child) == 0
+
+            sym_left = node.symbols[equation.left.name]
+            sym_right = node.symbols[equation.right.name]
 
             try:
                 class_left = getattr(sym_left, '__connector_type', None)
                 if class_left is None:
                     # We may be connecting classes which are not connectors, such as Reals.
-                    class_left = root.find_class(sym_left.type)
+                    class_left = node.find_class(sym_left.type)
                 # noinspection PyUnusedLocal
                 class_right = getattr(sym_right, '__connector_type', None)
                 if class_right is None:
                     # We may be connecting classes which are not connectors, such as Reals.
-                    class_right = root.find_class(sym_right.type)
-            except KeyError:
+                    class_right = node.find_class(sym_right.type)
+            except ast.FoundElementaryClassError:
                 primary_types = ['Real']
                 # TODO
                 if sym_left.type.name not in primary_types or sym_right.type.name not in primary_types:
@@ -372,7 +375,7 @@ def expand_connectors(root: ast.Tree, node: ast.Node) -> None:
             else:
                 # TODO: Add check about matching inputs and outputs
 
-                flat_class_left = flatten_class(root, class_left, '')
+                flat_class_left = flatten_class(class_left)
 
                 for connector_variable in flat_class_left.symbols.values():
                     left_name = equation.left.name + CLASS_SEPARATOR + connector_variable.name
@@ -462,8 +465,7 @@ class StateAnnotator(TreeListener):
     This finds all variables that are differentiated and annotates them with the state prefix
     """
 
-    def __init__(self, root: ast.Tree, node: ast.Node):
-        self.root = root
+    def __init__(self, node: ast.Node):
         self.node = node
         super().__init__()
 
@@ -473,12 +475,14 @@ class StateAnnotator(TreeListener):
         put state prefix on symbol
         """
         if tree.operator == 'der':
-            s = self.root.find_symbol(self.node, tree.operands[0])
+            assert len(tree.operands[0].child) == 0
+
+            s = self.node.symbols[tree.operands[0].name]
             if 'state' not in s.prefixes:
                 s.prefixes.append('state')
 
 
-def annotate_states(root: ast.Tree, node: ast.Node) -> None:
+def annotate_states(node: ast.Node) -> None:
     """
     Finds all derivative expressions and annotates all differentiated
     symbols as states by adding state the prefix list
@@ -487,7 +491,7 @@ def annotate_states(root: ast.Tree, node: ast.Node) -> None:
     :return:
     """
     w = TreeWalker()
-    w.walk(StateAnnotator(root, node), node)
+    w.walk(StateAnnotator(node), node)
 
 
 class FunctionExpander(TreeListener):
@@ -733,12 +737,16 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
 
             # we keep connectors in the class hierarchy, as we may refer to them further
             # up using connect() clauses
-            # TODO:
             if sym.type.type == 'connector':
-                flat_sym.__connector_type = None
+                # TODO: Which is it?
+                # 1. flatten_class(sym.type)
+                # 2. sym.type
+                # 3. flat_sub_class
+                flat_sym.__connector_type = flatten_class(sym.type)
                 flat_class.symbols[flat_sym.name] = flat_sym
 
-            sym.type = None
+                # TODO: Do we need the symbol type after this?
+                sym.type = sym.type.name
 
     # now resolve all references inside the symbol definitions
     for sym_name, sym in flat_class.symbols.items():
@@ -810,6 +818,17 @@ def flatten(orig_class: ast.Class, relative_path=None) -> ast.Class:
         orig_class = orig_class.find_class(relative_path, return_reference=True)
 
     flat_class = flatten_class(orig_class)
+
+    # expand connectors
+    expand_connectors(flat_class)
+
+    # add equations for state symbol values
+    add_state_value_equations(flat_class)
+    for function in flat_class.functions.values():
+        add_variable_value_statements(function)
+
+    # annotate states
+    annotate_states(flat_class)
 
     # Put class in root
     root = ast.Class()
