@@ -647,7 +647,14 @@ def file_to_tree(f: ModelicaFile) -> ast.Tree:
     # within statement, we have to check if the nodes of the within statement
     # are actually in the tree, and if not raise an exception.
     root = ast.Tree()
-    root.classes.update(f.classes)
+    insert_node = root
+    if f.within:
+        for p in f.within[0].to_tuple():
+            package = ast.Class(name=p, type="package")
+            insert_node.classes[p] = package
+            insert_node = package
+
+    insert_node.classes.update(f.classes)
     update_parent_refs(root, root)
     return root
 
