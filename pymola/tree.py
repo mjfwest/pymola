@@ -189,6 +189,9 @@ class TreeWalker(object):
         if hasattr(listener, 'enter' + name):
             getattr(listener, 'enter' + name)(tree)
         for child_name in tree.__dict__.keys():
+            if isinstance(tree, ast.Class) and child_name in ('root', 'parent'):
+                # Do not go up again.
+                continue
             self.handle_walk(listener, tree.__dict__[child_name])
         if hasattr(listener, 'exitEvery'):
             getattr(listener, 'exitEvery')(tree)
