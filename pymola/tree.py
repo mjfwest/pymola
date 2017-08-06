@@ -631,9 +631,6 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
     for sym_name, sym in extended_orig_class.symbols.items():
         class_name = sym.type
 
-        if isinstance(sym.type, ast.InstanceClass):
-            continue
-
         try:
             c = extended_orig_class.find_class(sym.type)
         except ast.FoundElementaryClassError:
