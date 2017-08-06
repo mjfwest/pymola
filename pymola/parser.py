@@ -655,14 +655,10 @@ def file_to_tree(f: ModelicaFile) -> ast.Tree:
             insert_node = package
 
     insert_node.classes.update(f.classes)
-    update_parent_refs(root, root)
-    return root
 
-def update_parent_refs(root: ast.Tree, parent: ast.Class) -> None:
-    for c in parent.classes.values():
-        c.root = root
-        c.parent = parent
-        update_parent_refs(root, c)
+    root.update_parent_refs()
+
+    return root
 
 def parse(text):
     input_stream = antlr4.InputStream(text)

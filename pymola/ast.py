@@ -456,6 +456,13 @@ class Class(Node):
         # Exclude the root node's name (=None)
         return ComponentRef.from_tuple(tuple(reversed(names[:-1])))
 
+    def _extend(self, other: 'Class') -> None:
+        for class_name in other.classes.keys():
+            if class_name in self.classes.keys():
+                self.classes[class_name]._extend(other.classes[class_name])
+            else:
+                self.classes[class_name] = other.classes[class_name]
+
 
 class InstanceClass(Class):
     def __init__(self, *args, **kwargs):
@@ -471,9 +478,15 @@ class Tree(Class):
     """
     The root class.
     """
-    # FIXME: We can probably just make it a class
+    def extend(self, other: 'Tree') -> None:
+        self._extend(other)
+        self.update_parent_refs()
 
-    @classmethod
-    def concatenate(*args: List['Tree']) -> 'Tree':
-        raise NotImplementedError()
+    def _update_parent_refs(self, parent: Class) -> None:
+        for c in parent.classes.values():
+            c.root = self
+            c.parent = parent
+            self._update_parent_refs(c)
 
+    def update_parent_refs(self) -> None:
+        self._update_parent_refs(self)
