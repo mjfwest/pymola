@@ -187,7 +187,6 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(func_f.statements[0].right.operands[0].operator,
                          'Level1.Level2.Level3.TestPackage.times2')
 
-    @unittest.expectedFailure
     def test_nested_symbol_modification(self):
         with open(os.path.join(TEST_DIR, 'NestedSymbolModification.mo'), 'r') as f:
             txt = f.read()
