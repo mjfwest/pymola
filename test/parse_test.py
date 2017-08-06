@@ -245,20 +245,17 @@ class ParseTest(unittest.TestCase):
         with self.assertRaises(Exception):
             ast_tree = parser.parse(txt)
 
-    # FIXME: We need a proper class-tree/instance-tree before getting this test
-    @unittest.expectedFailure
     def test_extends_order(self):
         with open(os.path.join(TEST_DIR, 'ExtendsOrder.mo'), 'r') as f:
             txt = f.read()
         ast_tree = parser.parse(txt)
 
-        class_name = 'M'
+        class_name = 'P.M'
         comp_ref = ast.ComponentRef.from_string(class_name)
 
         flat_tree = tree.flatten(ast_tree, comp_ref)
 
-        self.assertEqual('M.at.x', 0.0)
-        self.assertEqual('M.at.m', 0.0)
+        self.assertEqual(flat_tree.classes['M'].symbols['at.m'].value.value, 0.0)
 
 
 if __name__ == "__main__":
