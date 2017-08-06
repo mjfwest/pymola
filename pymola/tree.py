@@ -783,15 +783,21 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     # TODO: Make sure we also pull in any functions called in functions in function_set
     # TODO: Also do functions in statements, initial_statements, and initial_equations
 
-    # for f, c in pulled_functions.items():
-    #     pulled_functions[f] = flatten_class(root, c, '')
-    #     c = pulled_functions[f]
-    #     flat_class.functions.update(c.functions)
-    #     c.functions = OrderedDict()
+    for f, c in pulled_functions.items():
+        pulled_functions[f] = flatten_class(c)
+        c = pulled_functions[f]
+        flat_class.functions.update(c.functions)
+        c.functions = OrderedDict()
 
     flat_class.functions.update(pulled_functions)
 
     return flat_class
+
+def flatten_class(orig_class: ast.Class) -> ast.Class:
+    instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
+    flat_class = flatten_symbols(instance_tree)
+    return flat_class
+
 
 def flatten(orig_class: ast.Class, relative_path=None) -> ast.Class:
     """
@@ -805,17 +811,18 @@ def flatten(orig_class: ast.Class, relative_path=None) -> ast.Class:
     if relative_path is not None:
         orig_class = orig_class.find_class(relative_path, return_reference=True)
 
-    instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
-
-    # instance_tree = symbol_load_class(instance_tree)
-    # Optimization: Merge modifications of elementary types (type =
-    # __builtin). This is possible because we know they are the lowest level
-    # we go.
-
-    flat_class = flatten_symbols(instance_tree)
+    flat_class = flatten_class(orig_class)
 
     # Put class in root
-
     root = ast.Class()
     root.classes[orig_class.name] = flat_class
+
+    # pull functions to the top level,
+    # putting them prior to the model class so that they are visited
+    # first by the tree walker.
+    functions_and_classes = flat_class.functions
+    functions_and_classes.update(root.classes)
+    root.classes = functions_and_classes
+    flat_class.functions = OrderedDict()
+
     return root
