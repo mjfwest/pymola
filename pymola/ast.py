@@ -14,6 +14,9 @@ from collections import OrderedDict
 class ClassNotFoundError(Exception):
     pass
 
+class FoundElementaryClassError(Exception):
+    pass
+
 
 class Visibility(Enum):
     PRIVATE = 0, 'private'
@@ -406,8 +409,8 @@ class Class(Node):
                 raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
 
     def find_class(self, component_ref: ComponentRef, check_builtin_classes=False) -> 'Class':
-        if check_builtin_classes:
-            if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
+        if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
+            if check_builtin_classes:
                 c = Class(name=component_ref.name)
                 c.type = "__builtin"
                 c.parent = self.root
@@ -418,6 +421,8 @@ class Class(Node):
                 c.symbols[s.name] = s
 
                 return c
+            else:
+                raise FoundElementaryClassError()
 
         return self._find_class(component_ref)
 

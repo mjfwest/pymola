@@ -628,6 +628,69 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
     return extended_orig_class
 
 
+def flatten_instance_tree(class_: ast.InstanceClass, instance_name='', modification=ast.ClassModification()) -> ast.Class:
+    # Recursive symbol flattening
+
+    flat_class = ast.Class(
+        name=class_.name,
+        type=class_.type,
+    )
+
+    # append period to non empty instance_name
+    if instance_name != '':
+        instance_prefix = instance_name + CLASS_SEPARATOR
+    else:
+        instance_prefix = instance_name
+
+    # for all symbols in the original class
+    for sym_name, sym in class_.symbols.items():
+        flat_sym = flatten_symbol(sym, instance_prefix)
+        try:
+            c = class_.find_class(sym.type)
+
+            if c.type == "__builtin":
+                flat_class.symbols[flat_sym.name] = flat_sym
+                for att in flat_sym.ATTRIBUTES + ["type"]:
+                    setattr(flat_class.symbols[flat_sym.name], att, getattr(c.symbols['__value'], att))
+
+                continue
+
+        except ast.FoundElementaryClassError:
+            # append original symbol to flat class
+            flat_class.symbols[flat_sym.name] = flat_sym
+        else:
+            # recursively call flatten on the contained class
+            flat_sub_class = flatten_instance_tree(c, flat_sym.name, flat_sym.class_modification)
+
+            # carry class dimensions over to symbols
+            for flat_class_symbol in flat_sub_class.symbols.values():
+                if len(flat_class_symbol.dimensions) == 1 \
+                        and isinstance(flat_class_symbol.dimensions[0], ast.Primary) \
+                        and flat_class_symbol.dimensions[0].value == 1:
+                    flat_class_symbol.dimensions = flat_sym.dimensions
+                elif len(flat_sym.dimensions) == 1 and isinstance(flat_sym.dimensions[0], ast.Primary) \
+                        and flat_sym.dimensions[0].value == 1:
+                    flat_class_symbol.dimensions = flat_class_symbol.dimensions
+                else:
+                    flat_class_symbol.dimensions = flat_sym.dimensions + flat_class_symbol.dimensions
+
+            # add sub_class members symbols and equations
+            flat_class.classes.update(flat_sub_class.classes)
+            flat_class.symbols.update(flat_sub_class.symbols)
+            flat_class.equations += flat_sub_class.equations
+            flat_class.initial_equations += flat_sub_class.initial_equations
+            flat_class.statements += flat_sub_class.statements
+            flat_class.initial_statements += flat_sub_class.initial_statements
+            flat_class.functions.update(flat_sub_class.functions)
+
+            # we keep connectors in the class hierarchy, as we may refer to them further
+            # up using connect() clauses
+            if c.type == 'connector':
+                flat_sym.__connector_type = c
+                flat_class.symbols[flat_sym.name] = flat_sym
+
+    return flat_class
+
 def flatten(orig_class: ast.Class) -> ast.Class:
     """
     This function takes a Tree and flattens it so that all subclasses instances
@@ -640,4 +703,11 @@ def flatten(orig_class: ast.Class) -> ast.Class:
 
     instance_tree = build_instance_tree(orig_class)
 
-    return instance_tree
+
+    # Optimization: Merge modifications of elementary types (type =
+    # __builtin). This is possible because we know they are the lowest level
+    # we go.
+
+    flat_class = flatten_instance_tree(instance_tree)
+
+    return flat_class
