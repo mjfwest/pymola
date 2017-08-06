@@ -531,7 +531,7 @@ def fully_scope_function_calls(node: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modification_environment=None, parent=None) -> ast.InstanceClass:
+def flatten_extends(orig_class: Union[ast.Class, ast.InstanceClass], modification_environment=None, parent=None) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
         type=orig_class.type,
@@ -550,7 +550,7 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
                 raise Exception("When extending a built-in class (Real, Integer, ...), extending from other as well classes is not allowed.")
             extended_orig_class.type = c.type
 
-        c = build_instance_tree(c, parent=c.parent)
+        c = flatten_extends(c, parent=c.parent)
 
         extended_orig_class.classes.update(c.classes)
         extended_orig_class.symbols.update(c.symbols)
@@ -577,6 +577,13 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
 
     if modification_environment is not None:
         extended_orig_class.modification_environment.arguments.extend(modification_environment.arguments)
+
+    return extended_orig_class
+
+
+def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modification_environment=None, parent=None) -> ast.InstanceClass:
+
+    extended_orig_class = flatten_extends(orig_class, modification_environment, parent)
 
     # Redeclarations take effect
     for class_mod_argument in extended_orig_class.modification_environment.arguments:
