@@ -363,7 +363,6 @@ class ClassModificationArgument(Node):
     def __init__(self, **kwargs):
         self.value = []  # type: Union[ElementModification, ComponentClause, ShortClassDefinition]
         self.redeclare = False
-        self.scope = None # type: InstanceClass
         super().__init__(**kwargs)
 
 class ExtendsClause(Node):

@@ -619,8 +619,6 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
         for main_mod in sub_class_arguments:
             for elem_class_mod in main_mod.value.modifications:
                 for arg in elem_class_mod.arguments:
-                    if arg.scope is None:
-                        arg.scope = extended_orig_class
                     sub_class_modification.arguments.append(arg)
 
         extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification, extended_orig_class)
@@ -646,9 +644,6 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
 
             # Fix component references and set correct scope for possible lookup
             for arg in sym_arguments:
-                if arg.scope is None:
-                    arg.scope = extended_orig_class
-
                 if arg.value.component.indices:
                     raise Exception("Subscripting modifiers is not allowed.")
 
