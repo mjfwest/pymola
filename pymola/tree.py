@@ -214,45 +214,32 @@ class TreeWalker(object):
             pass
 
 
-def modify_class(root: ast.Tree, class_or_sym: Union[ast.Class, ast.Symbol], modification):
+def modify_class(class_or_sym: Union[ast.Class, ast.Symbol], modification=None):
     """
     Apply a modification to a class or symbol.
-    :param root: root tree for looking up symbols
     :param class_or_sym: class or symbol to modify
     :param modification: modification to apply
     :return:
     """
-    class_or_sym = copy.deepcopy(class_or_sym)
     for class_mod_argument in modification.arguments:
         argument = class_mod_argument.value
-        if isinstance(argument, ast.ElementModification):
-            if argument.component.name in ast.Symbol.ATTRIBUTES:
-                setattr(class_or_sym, argument.component.name, argument.modifications[0])
-            else:
-                if isinstance(class_or_sym, ast.Class):
-                    # First we check the local class definitions
-                    s = class_or_sym.classes.get(argument.component.name, None)
-                    if s is None:
-                        s = root.find_symbol(class_or_sym, argument.component)
-                    elif s.type == "__builtin":
-                        # We need to do any modifications on the containing symbol
-                        s = s.symbols['__value']
-                else:
-                    s = root.find_symbol(class_or_sym, argument.component)
-
-                for modification in argument.modifications:
-                    if isinstance(modification, ast.ClassModification):
-                        s.__dict__.update(modify_class(root, s, modification).__dict__)
-                    else:
-                        s.value = modification
-        elif isinstance(argument, ast.ComponentClause):
-            for new_sym in argument.symbol_list:
-                orig_sym = class_or_sym.symbols[new_sym.name]
-                orig_sym.__dict__.update(new_sym.__dict__)
-        elif isinstance(argument, ast.ShortClassDefinition):
-            class_or_sym.classes[argument.name] = root.find_class(argument.component)
-        else:
+        if not isinstance(argument, ast.ElementModification):
             raise Exception('Unsupported class modification argument {}'.format(argument))
+
+        if argument.component.name in ast.Symbol.ATTRIBUTES:
+            if isinstance(class_or_sym, ast.Class):
+                assert class_or_sym.type == "__builtin"
+                setattr(class_or_sym.symbols['__value'], argument.component.name, argument.modifications[0])
+            else:
+                setattr(class_or_sym, argument.component.name, argument.modifications[0])
+        else:
+            s = class_or_sym.symbols[argument.component.name]
+
+            for modification in argument.modifications:
+                if isinstance(modification, ast.ClassModification):
+                    s.__dict__.update(modify_class(s, modification).__dict__)
+                else:
+                    s.value = modification
     return class_or_sym
 
 
@@ -548,13 +535,16 @@ def fully_scope_function_calls(root: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
-def build_instance_tree(orig_class: ast.Class, modification_environment=None, parent=None) -> ast.InstanceClass:
+def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modification_environment=None, parent=None) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
         type=orig_class.type,
         parent=parent,
         root=parent.root if parent is not None else None
     )
+
+    if isinstance(orig_class, ast.InstanceClass):
+        extended_orig_class.modification_environment = orig_class.modification_environment
 
     for extends in orig_class.extends:
         c = orig_class.find_class(extends.component, check_builtin_classes=True)
@@ -621,13 +611,16 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
         # Remove from current class's modification environment
         extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sub_class_arguments]
 
-        for arg in sub_class_arguments:
-            if arg.scope is None:
-                arg.scope = extended_orig_class
-            sub_class_modification.arguments.append(arg)
+        for main_mod in sub_class_arguments:
+            for elem_class_mod in main_mod.value.modifications:
+                for arg in elem_class_mod.arguments:
+                    if arg.scope is None:
+                        arg.scope = extended_orig_class
+                    sub_class_modification.arguments.append(arg)
 
         extended_orig_class.classes[class_name] = build_instance_tree(c, sub_class_modification, extended_orig_class)
 
+    # Merge/pass along modifications for symbols, including redeclares
     for sym_name, sym in extended_orig_class.symbols.items():
         class_name = sym.type
 
@@ -636,10 +629,29 @@ def build_instance_tree(orig_class: ast.Class, modification_environment=None, pa
         except ast.FoundElementaryClassError:
             pass  # Do nothing
         else:
+            # Symbol is not elementary type. Check if we need to move any modifications along.
+            sym_arguments = [x for x in extended_orig_class.modification_environment.arguments
+                if isinstance(x.value, ast.ElementModification) and x.value.component.name == sym_name]
+
+            # Remove from current class's modification environment
+            extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sym_arguments]
+
+            # Fix component references and set correct scope for possible lookup
+            for arg in sym_arguments:
+                if arg.scope is None:
+                    arg.scope = extended_orig_class
+
+                if arg.value.component.indices:
+                    raise Exception("Subscripting modifiers is not allowed.")
+
+                arg.value.component = arg.value.component.child[0]
+
             if sym.class_modification:
-                for arg in sym.class_modification.arguments:
-                    if arg.scope is None:
-                        arg.scope = extended_orig_class
+                sym.class_modification.arguments.extend(sym_arguments)
+            else:
+                sym_modification = ast.ClassModification()
+                sym_modification.arguments = sym_arguments
+                sym.class_modification = sym_modification
 
             sym.type = build_instance_tree(c, sym.class_modification, c.parent)
             sym.class_modification = None
@@ -661,6 +673,9 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     else:
         instance_prefix = instance_name
 
+    # TODO: Am I correct that no symbols have class_modifications anymore, only classes (modification_environment)?
+    modify_class(class_, class_.modification_environment)
+
     # for all symbols in the original class
     for sym_name, sym in class_.symbols.items():
 
@@ -680,9 +695,10 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
             # Elementary type
             flat_class.symbols[flat_sym.name] = flat_sym
         elif sym.type.type == "__builtin":
+            modify_class(sym.type, sym.type.modification_environment)
             flat_class.symbols[flat_sym.name] = flat_sym
             for att in flat_sym.ATTRIBUTES + ["type"]:
-                setattr(flat_class.symbols[flat_sym.name], att, getattr(c.symbols['__value'], att))
+                setattr(flat_class.symbols[flat_sym.name], att, getattr(sym.type.symbols['__value'], att))
             continue
         else:
             # recursively call flatten on the contained class
@@ -711,14 +727,15 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
 
             # we keep connectors in the class hierarchy, as we may refer to them further
             # up using connect() clauses
-            # if c.type == 'connector':
-            #     flat_sym.__connector_type = c
-            #     flat_class.symbols[flat_sym.name] = flat_sym
+            if sym.type.type == 'connector':
+                flat_sym.__connector_type = sym.type
+                flat_class.symbols[flat_sym.name] = flat_sym
 
     # now resolve all references inside the symbol definitions
     # for sym_name, sym in flat_class.symbols.items():
     #     flat_sym = flatten_component_refs(root, flat_class, sym, instance_prefix)
     #     flat_class.symbols[sym_name] = flat_sym
+
 
     return flat_class
 
