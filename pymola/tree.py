@@ -831,7 +831,7 @@ def flatten(orig_class: ast.Class, relative_path=None) -> ast.Class:
     annotate_states(flat_class)
 
     # Put class in root
-    root = ast.Class()
+    root = ast.Tree()
     root.classes[orig_class.name] = flat_class
 
     # pull functions to the top level,
