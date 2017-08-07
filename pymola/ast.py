@@ -408,14 +408,19 @@ class Class(Node):
                 raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
 
     def find_class(self, component_ref: ComponentRef, return_reference=False, check_builtin_classes=False) -> 'Class':
-        if component_ref.name in ["Real", "Integer", "String", "Boolean"]:
+        # TODO: Remove workaround for Modelica / Modelica.SIUnits
+        if component_ref.name in ["Real", "Integer", "String", "Boolean", "Modelica", "SI"]:
             if check_builtin_classes:
-                c = Class(name=component_ref.name)
+                type_ = component_ref.name
+                if component_ref.name in ["Modelica", "SI"]:
+                    type_ = "Real"
+
+                c = Class(name=type_)
                 c.type = "__builtin"
                 c.parent = self.root
                 c.root = self.root
 
-                cref = ComponentRef(name=component_ref.name)
+                cref = ComponentRef(name=type_)
                 s = Symbol(name="__value", type=cref)
                 c.symbols[s.name] = s
 
