@@ -557,7 +557,7 @@ def flatten_extends(orig_class: Union[ast.Class, ast.InstanceClass], modificatio
                 raise Exception("When extending a built-in class (Real, Integer, ...), extending from other as well classes is not allowed.")
             extended_orig_class.type = c.type
 
-        c = flatten_extends(c, parent=c.parent)
+        c = flatten_extends(c, extends.class_modification, parent=c.parent)
 
         extended_orig_class.classes.update(c.classes)
         extended_orig_class.symbols.update(c.symbols)
@@ -566,8 +566,7 @@ def flatten_extends(orig_class: Union[ast.Class, ast.InstanceClass], modificatio
         extended_orig_class.statements += c.statements
         extended_orig_class.initial_statements += c.initial_statements
         extended_orig_class.functions.update(c.functions)
-
-        extended_orig_class.modification_environment.arguments.extend(extends.class_modification.arguments)
+        extended_orig_class.modification_environment.arguments.extend(c.modification_environment.arguments)
 
         # set visibility
         for sym in extended_orig_class.symbols.values():
