@@ -329,9 +329,6 @@ class ImportFromClause(Node):
 
 
 class ElementModification(Node):
-    # TODO: Check if ComponentRef modifiers are handled correctly. For example,
-    # check HomotopicLinear which extends PartialHomotopic with the modifier
-    # "H(min = H_b)".
     def __init__(self, **kwargs):
         self.component = ComponentRef()  # type: Union[ComponentRef]
         self.modifications = []  # type: List[Union[Primary, Expression, ClassModification, Array, ComponentRef]]
@@ -440,13 +437,6 @@ class Class(Node):
 
         return c
 
-    def find_symbol(self, node, component_ref: ComponentRef) -> Symbol:
-        raise NotImplementedError()
-
-    def insert(self):
-        # if compref starts with ., go to root.
-        raise NotImplementedError()
-
     def full_reference(self):
         names = []
 
@@ -472,10 +462,6 @@ class Class(Node):
 class InstanceClass(Class):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # self.unnamed = []
-        # self.orig_class = None
-        # self.initialized = False
         self.modification_environment = ClassModification()
 
 
