@@ -538,6 +538,35 @@ def fully_scope_function_calls(node: ast.Tree, expression: ast.Expression, funct
     return expression_copy
 
 
+class ElementarySymbolModificationApplier(TreeListener):
+    """
+    This walker applies all modifications on elementary types (e.g. Real,
+    Integer, etc.). It also checks if there are any lingering modifications
+    that should not be present, e.g. redeclarations, or symbol modifications
+    on non-elementary types.
+    """
+
+    def __init__(self, node: ast.Node):
+        self.node = node
+        super().__init__()
+
+    def exitSymbol(self, tree: ast.Symbol):
+        if not isinstance(tree.type, ast.ComponentRef):
+            assert tree.class_modification is None, "Found non-None symbol modification in instance tree."
+        elif tree.class_modification is not None:
+            # Apply any elemen
+            modify_class(tree, tree.class_modification)
+            tree.class_modification = None
+
+    def exitClassModificationArgument(self, tree: ast.ClassModificationArgument):
+        assert isinstance(tree.value, ast.ElementModification), "Found unhandled redeclaration in instance tree."
+
+
+def apply_elementary_symbol_modifications(node: ast.Node) -> None:
+    w = TreeWalker()
+    w.walk(ElementarySymbolModificationApplier(node), node)
+
+
 def flatten_extends(orig_class: Union[ast.Class, ast.InstanceClass], modification_environment=None, parent=None) -> ast.InstanceClass:
     extended_orig_class = ast.InstanceClass(
         name=orig_class.name,
@@ -800,7 +829,17 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
 
 def flatten_class(orig_class: ast.Class) -> ast.Class:
     instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
+
+    apply_elementary_symbol_modifications(instance_tree)
+
+    # At this point there are:
+    # 1. No symbol modifiers left (everything is shifted to the
+    #    InstanceClass's modification environment, or has been applied to
+    #    elementary symbols)
+    # 2. No redeclarations left, only ElementModifications
+
     flat_class = flatten_symbols(instance_tree)
+
     return flat_class
 
 
