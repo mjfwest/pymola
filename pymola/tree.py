@@ -766,11 +766,8 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
             # we keep connectors in the class hierarchy, as we may refer to them further
             # up using connect() clauses
             if sym.type.type == 'connector':
-                # TODO: Which is it?
-                # 1. flatten_class(sym.type)
-                # 2. sym.type
-                # 3. flat_sub_class
-                flat_sym.__connector_type = flatten_class(sym.type)
+                # TODO: Should we flatten sym.type (e.g. because it is faster)?
+                flat_sym.__connector_type = sym.type
                 flat_class.symbols[flat_sym.name] = flat_sym
 
                 # TODO: Do we need the symbol type after this?
