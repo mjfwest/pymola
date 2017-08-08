@@ -72,8 +72,8 @@ class Node(object):
                 raise KeyError('{:s} not valid arg'.format(key))
             self.__dict__[key] = kwargs[key]
 
-    # def __repr__(self):
-    #     return json.dumps(self.to_json(self), indent=2, sort_keys=True)
+    def __repr__(self):
+        return json.dumps(self.to_json(self), indent=2, sort_keys=True)
 
     @classmethod
     def to_json(cls, var):
@@ -82,14 +82,15 @@ class Node(object):
         elif isinstance(var, dict):
             res = {key: cls.to_json(var[key]) for key in var.keys()}
         elif isinstance(var, Node):
-            res = {key: cls.to_json(var.__dict__[key]) for key in var.__dict__.keys()}
+            res = {key: cls.to_json(var.__dict__[key]) for key in var.__dict__.keys()
+                   if key not in ('root', 'parent')}
         elif isinstance(var, Visibility):
             res = str(var)
         else:
             res = var
         return res
 
-    # __str__ = __repr__
+    __str__ = __repr__
 
 
 class Primary(Node):
