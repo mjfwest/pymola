@@ -563,7 +563,8 @@ def flatten_extends(orig_class: Union[ast.Class, ast.InstanceClass], modificatio
 
         if c.type == "__builtin":
             if len(orig_class.extends) > 1:
-                raise Exception("When extending a built-in class (Real, Integer, ...), extending from other as well classes is not allowed.")
+                raise Exception(
+                    "When extending a built-in class (Real, Integer, ...) you cannot extend other classes as well")
             extended_orig_class.type = c.type
 
         c = flatten_extends(c, extends.class_modification, parent=c.parent)
@@ -614,7 +615,8 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
         else:
             raise Exception("Unknown redeclaration type")
 
-    extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
+    extended_orig_class.modification_environment.arguments = [
+        x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
 
     # Only ast.ElementModification type modifications left in the class's
     # modification environment. No more ComponentClause or
@@ -626,10 +628,11 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
         sub_class_modification = ast.ClassModification()
 
         sub_class_arguments = [x for x in extended_orig_class.modification_environment.arguments
-            if isinstance(x.value, ast.ElementModification) and x.value.component.name == class_name]
+                               if isinstance(x.value, ast.ElementModification) and x.value.component.name == class_name]
 
         # Remove from current class's modification environment
-        extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sub_class_arguments]
+        extended_orig_class.modification_environment.arguments = [
+            x for x in extended_orig_class.modification_environment.arguments if x not in sub_class_arguments]
 
         for main_mod in sub_class_arguments:
             for elem_class_mod in main_mod.value.modifications:
@@ -652,10 +655,11 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
         else:
             # Symbol is not elementary type. Check if we need to move any modifications along.
             sym_arguments = [x for x in extended_orig_class.modification_environment.arguments
-                if isinstance(x.value, ast.ElementModification) and x.value.component.name == sym_name]
+                             if isinstance(x.value, ast.ElementModification) and x.value.component.name == sym_name]
 
             # Remove from current class's modification environment
-            extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if x not in sym_arguments]
+            extended_orig_class.modification_environment.arguments = [
+                x for x in extended_orig_class.modification_environment.arguments if x not in sym_arguments]
 
             # Fix component references and set correct scope for possible lookup
             for arg in sym_arguments:
@@ -799,6 +803,7 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     flat_class.functions.update(pulled_functions)
 
     return flat_class
+
 
 def flatten_class(orig_class: ast.Class) -> ast.Class:
     # First we build a tree of the to-be-flattened class, with all symbol
