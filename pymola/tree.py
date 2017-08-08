@@ -616,8 +616,8 @@ def build_instance_tree(orig_class: Union[ast.Class, ast.InstanceClass], modific
 
     extended_orig_class.modification_environment.arguments = [x for x in extended_orig_class.modification_environment.arguments if not x.redeclare]
 
-    # Assert: Only ast.ElementModification type modifications left in the
-    # class's modification environment. No more ComponentClause or
+    # Only ast.ElementModification type modifications left in the class's
+    # modification environment. No more ComponentClause or
     # ShortClassDefinitions (which are both redeclares). There are still
     # possible redeclares in symbols though.
 
@@ -691,7 +691,6 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     else:
         instance_prefix = instance_name
 
-    # TODO: Am I correct that no symbols have class_modifications anymore, only classes (modification_environment)?
     modify_class(class_, class_.modification_environment)
 
     # for all symbols in the original class
@@ -791,9 +790,6 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     flat_class.initial_statements += \
         [flatten_component_refs(flat_class, e, instance_prefix) for e in fs_initial_statements]
 
-    # TODO: Make sure we also pull in any functions called in functions in function_set
-    # TODO: Also do functions in statements, initial_statements, and initial_equations
-
     for f, c in pulled_functions.items():
         pulled_functions[f] = flatten_class(c)
         c = pulled_functions[f]
@@ -805,8 +801,13 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
     return flat_class
 
 def flatten_class(orig_class: ast.Class) -> ast.Class:
+    # First we build a tree of the to-be-flattened class, with all symbol
+    # types expanded to classes as well. Modifications are shifted/passed
+    # along to child classes. No symbol flattening is performed.
     instance_tree = build_instance_tree(orig_class, parent=orig_class.parent)
 
+    # Apply remaining symbol modifications, i.e. those on elementary types,
+    # because we do not handle those as classes.
     apply_elementary_symbol_modifications(instance_tree)
 
     # At this point there are:
@@ -815,6 +816,7 @@ def flatten_class(orig_class: ast.Class) -> ast.Class:
     #    elementary symbols)
     # 2. No redeclarations left, only ElementModifications
 
+    # Now we flatten all symbols.
     flat_class = flatten_symbols(instance_tree)
 
     return flat_class
