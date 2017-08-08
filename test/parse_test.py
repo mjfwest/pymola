@@ -108,6 +108,8 @@ class ParseTest(unittest.TestCase):
         flat_tree = tree.flatten(ast_tree, ast.ComponentRef(name='C2'))
 
         self.assertEqual(flat_tree.classes['C2'].symbols['bcomp1.b'].value.value, 3.0)
+        self.assertEqual(flat_tree.classes['C2'].symbols['bcomp3.a'].value.value, 1.0)
+        self.assertEqual(flat_tree.classes['C2'].symbols['bcomp3.b'].value.value, 2.0)
 
     def test_nested_classes(self):
         with open(os.path.join(TEST_DIR, 'NestedClasses.mo'), 'r') as f:
