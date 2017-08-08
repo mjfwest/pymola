@@ -246,26 +246,6 @@ def modify_class(class_or_sym: Union[ast.Class, ast.Symbol], modification=None):
     return class_or_sym
 
 
-def flatten_symbol(s: ast.Symbol, instance_prefix: str) -> ast.Symbol:
-    """
-    Given a symbols and a prefix performs name mangling
-    :param s: Symbol
-    :param instance_prefix: Prefix for instance
-    :return: flattened symbol
-    """
-    s_copy = copy.deepcopy(s)
-    s_copy.name = instance_prefix + s.name
-    if len(instance_prefix) > 0:
-        # Strip 'input' and 'output' prefixes from nested symbols.
-        strip_keywords = ['input', 'output']
-        for strip_keyword in strip_keywords:
-            try:
-                s_copy.prefixes.remove(strip_keyword)
-            except ValueError:
-                pass
-    return s_copy
-
-
 class ComponentRefFlattener(TreeListener):
     """
     A listener that flattens references to components and performs name mangling,
