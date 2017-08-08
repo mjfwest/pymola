@@ -448,7 +448,7 @@ class Class(Node):
             else:
                 c = c.parent
 
-        # Exclude the root node's name (=None)
+        # Exclude the root node's name
         return ComponentRef.from_tuple(tuple(reversed(names[:-1])))
 
     def _extend(self, other: 'Class') -> None:
@@ -460,6 +460,11 @@ class Class(Node):
 
 
 class InstanceClass(Class):
+    """
+    Class used during instantiation/expansion of the model. Modififcations on
+    symbols and extends clauses are shifted to the modification environment of
+    this InstanceClass.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.modification_environment = ClassModification()
