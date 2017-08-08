@@ -388,8 +388,8 @@ class Class(Node):
         self.equations = []  # type: List[Union[Equation, ForEquation, ConnectClause]]
         self.initial_statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
-        self.parent = None # type: Class
-        self.root = None # type: Tree
+        self.parent = None  # type: Class
+        self.root = None  # type: Tree
         super().__init__(**kwargs)
 
     def _find_class(self, component_ref: ComponentRef, search_parent=True) -> 'Class':
