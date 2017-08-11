@@ -554,6 +554,9 @@ def flatten_class(orig_class: ast.Class) -> ast.Class:
 
     # At this point there are no modifications left, on classes or symbols of whatever kind.
 
+    # Pull references to constants
+    apply_constant_references(instance_tree)
+
     # Finally we flatten all symbols.
     flat_class = flatten_symbols(instance_tree)
 
@@ -882,6 +885,64 @@ class SymbolModificationApplier(TreeListener):
 def apply_symbol_modifications(node: ast.Node) -> None:
     w = TreeWalker()
     w.walk(SymbolModificationApplier(node), node)
+
+
+class ConstantReferenceApplier(TreeListener):
+    """
+    This walker applies all references to constants. It replaces component
+    reference by a primary.
+    """
+
+    def __init__(self, class_: ast.InstanceClass):
+        self.classes = []
+
+        super().__init__()
+
+    def enterEvery(self, tree: ast.Node):
+        # Because it is not possible for an object to replace itself, we have
+        # to explicitly check all list/dict/attributes on the parent/enclosing
+        # node.
+        if isinstance(tree, ast.Node):
+            for k, attr_val in tree.__dict__.items():
+                if isinstance(attr_val, ast.ComponentRef) and attr_val.child:
+                    try:
+                        s = self.classes[-1].find_symbol(attr_val)
+                        if 'constant' in s.prefixes:
+                            setattr(tree, k, s.value)
+                    except (KeyError, ast.ClassNotFoundError, ast.FoundElementaryClassError):
+                        pass
+                elif isinstance(attr_val, dict):
+                    for k, v in attr_val.items():
+                        if isinstance(v, ast.ComponentRef) and v.child:
+                            try:
+                                s = self.classes[-1].find_symbol(v)
+                                if 'constant' in s.prefixes:
+                                    attr_val[k] = s.value
+                            except (KeyError, ast.ClassNotFoundError, ast.FoundElementaryClassError):
+                                pass
+                elif isinstance(attr_val, list):
+                    for i, v in enumerate(attr_val):
+                        if isinstance(v, ast.ComponentRef) and v.child:
+                            try:
+                                s = self.classes[-1].find_symbol(v)
+                                if 'constant' in s.prefixes:
+                                    attr_val[i] = s.value
+                            except (KeyError, ast.ClassNotFoundError, ast.FoundElementaryClassError):
+                                pass
+
+    def enterInstanceClass(self, tree: ast.InstanceClass):
+        self.classes.append(tree)
+
+    def exitInstanceClass(self, tree: ast.InstanceClass):
+        self.classes.pop()
+
+    def enterClass(self, tree: ast.InstanceClass):
+        assert False, "All classes should have been replaced by instance classes."
+
+
+def apply_constant_references(class_: ast.InstanceClass) -> None:
+    w = TreeWalker()
+    w.walk(ConstantReferenceApplier(class_), class_)
 
 
 def flatten(root: ast.Tree, class_name: ast.ComponentRef) -> ast.Class:
