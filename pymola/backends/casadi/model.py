@@ -106,7 +106,7 @@ class Model:
                     simple_parameters.append(p)
                 else:
                     symbols.append(p.symbol)
-                    values.append(value)
+                    values.append(p.value)
 
             self.parameters = simple_parameters
 
@@ -222,7 +222,8 @@ class Model:
                 self.equations = ca.substitute(self.equations, symbols, values)
             if len(self.initial_equations) > 0:
                 self.initial_equations = ca.substitute(self.initial_equations, symbols, values)
-            self.parameters = unspecified_parameters
+
+            self.parameters = unspecified_parameters + [Variable(ca.MX.sym('workaround'))]
 
             # Replace parameter values in metadata
             for variable in itertools.chain(self.states, self.alg_states, self.inputs, self.parameters, self.constants):
@@ -496,7 +497,7 @@ class Model:
 
         if options.get('expand_mx', False):
             logger.info("Expanding MX graph")
-            
+
             if len(self.equations) > 0:
                 self.equations = ca.matrix_expand(self.equations)
             if len(self.initial_equations) > 0:
@@ -527,4 +528,4 @@ class Model:
                     value = value if value.numel() != 1 else ca.repmat(value, *variable.symbol.size())
                     attribute_lists[attribute_list_index].append(value)
             out.append(ca.horzcat(*[ca.veccat(*attribute_list) for attribute_list in attribute_lists]))
-        return ca.Function('variable_metadata', [ca.veccat(*self._symbols(self.parameters))], out) 
+        return ca.Function('variable_metadata', [ca.veccat(*self._symbols(self.parameters))], out)
