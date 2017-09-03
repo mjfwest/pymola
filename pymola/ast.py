@@ -82,6 +82,8 @@ class Node(object):
         elif isinstance(var, dict):
             res = {key: cls.to_json(var[key]) for key in var.keys()}
         elif isinstance(var, Node):
+            # Avoid infinite recursion by not handling attributes that may go
+            # back up in the tree again.
             res = {key: cls.to_json(var.__dict__[key]) for key in var.__dict__.keys()
                    if key not in ('root', 'parent', 'scope')}
         elif isinstance(var, Visibility):
@@ -390,7 +392,11 @@ class Class(Node):
         self.initial_statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.statements = []  # type: List[Union[AssignmentStatement, IfStatement, ForStatement]]
         self.parent = None  # type: Class
+        # Some references are relative to root. Instead of traversing up the
+        # tree using parent to find the root node, we store a reference to it
+        # for faster and cleaner lookups.
         self.root = None  # type: Tree
+
         super().__init__(**kwargs)
 
     def _find_class(self, component_ref: ComponentRef, search_parent=True) -> 'Class':
@@ -406,7 +412,7 @@ class Class(Node):
             else:
                 raise ClassNotFoundError("Could not find class '{}'".format(component_ref))
 
-    def find_class(self, component_ref: ComponentRef, return_reference=False, check_builtin_classes=False) -> 'Class':
+    def find_class(self, component_ref: ComponentRef, copy=True, check_builtin_classes=False) -> 'Class':
         # TODO: Remove workaround for Modelica / Modelica.SIUnits
         if component_ref.name in ["Real", "Integer", "String", "Boolean", "Modelica", "SI"]:
             if check_builtin_classes:
@@ -429,13 +435,8 @@ class Class(Node):
 
         c = self._find_class(component_ref)
 
-        if not return_reference:
-            _parent, _root = c.parent, c.root
-            _orig = c
-            c.parent, c.root = None, None
-            c = copy.deepcopy(c)
-            c.parent, c.root = _parent, _root
-            _orig.parent, _orig.root = _parent, _root
+        if copy:
+            c = c.copy_including_children()
 
         return c
 
@@ -459,6 +460,16 @@ class Class(Node):
                 self.classes[class_name]._extend(other.classes[class_name])
             else:
                 self.classes[class_name] = other.classes[class_name]
+
+    @classmethod
+    def copy_including_children(cls):
+        _parent, _root = cls.parent, cls.root
+        _orig = cls
+        cls.parent, cls.root = None, None
+        cls = copy.deepcopy(cls)
+        cls.parent, cls.root = _parent, _root
+        _orig.parent, _orig.root = _parent, _root
+        return cls
 
 
 class InstanceClass(Class):
