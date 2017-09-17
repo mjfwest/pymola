@@ -8,7 +8,6 @@ import antlr4
 import antlr4.Parser
 from typing import Dict
 from collections import deque, OrderedDict
-import copy
 
 from . import ast
 # noinspection PyUnresolvedReferences,PyUnresolvedReferences
@@ -509,7 +508,7 @@ class ASTListener(ModelicaListener):
             s = self.class_node.symbols[sym.name]
             s.dimensions = list(s.dimensions)
             s.prefixes = list(s.prefixes)
-            s.type = copy.deepcopy(clause.type)
+            s.type = ast.copy_fast(clause.type)
 
     def exitComponent_clause1(self, ctx):
         clause = self.ast[ctx]
@@ -519,7 +518,7 @@ class ASTListener(ModelicaListener):
             s = self.class_node.symbols[sym.name]
             s.dimensions = list(s.dimensions)
             s.prefixes = list(s.prefixes)
-            s.type = copy.deepcopy(clause.type)
+            s.type = ast.copy_fast(clause.type)
 
     def enterComponent_declaration(self, ctx):
         sym = ast.Symbol(order=self.sym_count)

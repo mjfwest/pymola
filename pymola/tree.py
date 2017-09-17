@@ -6,7 +6,6 @@ Tools for tree walking and visiting etc.
 from __future__ import print_function, absolute_import, division, unicode_literals
 
 import numpy as np
-import copy
 import logging
 import copy # TODO
 import sys
@@ -603,7 +602,7 @@ def flatten_component_refs(
     :return: flattened expression
     """
 
-    expression_copy = copy.deepcopy(expression)
+    expression_copy = ast.copy_fast(expression)
 
     w = TreeWalker()
     w.walk(ComponentRefFlattener(container, instance_prefix), expression_copy)
@@ -648,7 +647,7 @@ def fully_scope_function_calls(node: ast.Tree, expression: ast.Expression, funct
     :param function_set: output of function component references
     :return:
     """
-    expression_copy = copy.deepcopy(expression)
+    expression_copy = ast.copy_fast(expression)
 
     w = TreeWalker()
     w.walk(FunctionExpander(node, function_set), expression_copy)

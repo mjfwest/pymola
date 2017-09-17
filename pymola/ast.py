@@ -4,7 +4,7 @@ Modelica AST definitions
 """
 from __future__ import print_function, absolute_import, division, print_function, unicode_literals
 
-import copy
+import pickle
 import json
 from enum import Enum
 from typing import List, Union, Dict
@@ -179,12 +179,12 @@ class ComponentRef(Node):
         :return: New component reference, with other appended to self.
         """
 
-        a = copy.deepcopy(args[0])
+        a = copy_fast(args[0])
         n = a
         for b in args[1:]:
             while n.child:
                 n = n.child[0]
-            b = copy.deepcopy(b)  # Not strictly necessary
+            b = copy_fast(b)  # Not strictly necessary
             n.child = [b]
         return a
 
@@ -503,7 +503,7 @@ class Class(Node):
     def copy_including_children(self):
         _parent, _root = self.parent, self.root
         self.parent, self.root = None, None
-        new = copy.deepcopy(self)
+        new = copy_fast(self)
         self.parent, self.root = _parent, _root
         new.parent, new.root = _parent, _root
         return new
@@ -536,3 +536,14 @@ class Tree(Class):
 
     def update_parent_refs(self) -> None:
         self._update_parent_refs(self)
+
+
+def copy_fast(obj: Node) -> Node:
+    """
+    Make a copy of the Node using pickle. We do not need the extra generality
+    that deepcopy provides (e.g. class definitions not being top level), so we
+    can use the much faster pickle loads/dumps combination.
+    :param obj: Node/object to be copied
+    :return: copy of Node/object
+    """
+    return pickle.loads(pickle.dumps(obj, -1))
