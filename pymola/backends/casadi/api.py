@@ -82,22 +82,52 @@ class ObjectData:
 
 def _compile_model(model_folder: str, model_name: str, compiler_options: Dict[str, str]):
     # Load folders
-    tree = None
-    for folder in [model_folder] + compiler_options.get('library_folders', []):
-        for root, dir, files in os.walk(folder, followlinks=True):
-            for item in fnmatch.filter(files, "*.mo"):
-                logger.info("Parsing {}".format(item))
+    pickle_name = os.path.join(model_folder, model_name + "_flattened.pickle")
 
-                with open(os.path.join(root, item), 'r') as f:
-                    if tree is None:
-                        tree = parser.parse(f.read())
-                    else:
-                        tree.extend(parser.parse(f.read()))
+    flat_tree = None
+    if os.path.exists(pickle_name):
+        cache_mtime = os.path.getmtime(pickle_name)
+        try:
+            for folder in [model_folder] + compiler_options.get('library_folders', []):
+                for root, dir, files in os.walk(folder, followlinks=True):
+                    for item in fnmatch.filter(files, "*.mo"):
+                        filename = os.path.join(root, item)
+                        if os.path.getmtime(filename) > cache_mtime:
+                            raise InvalidCacheError("Cache out of date")
+
+            logger.info("Using flattened model in pickle file '{}'".format(pickle_name))
+
+            flat_tree = pickle.load(open(pickle_name, "rb"))
+        except InvalidCacheError:
+            logger.info("Pickle of flattened model out of date. Reading again.")
+            pass
+
+    # If we couldn't find a (recent) pickle, parse and flatten
+    if flat_tree is None:
+        ast_tree = None
+        for folder in [model_folder] + compiler_options.get('library_folders', []):
+            for root, dir, files in os.walk(folder, followlinks=True):
+                for item in fnmatch.filter(files, "*.mo"):
+                    logger.info("Parsing {}".format(item))
+
+                    with open(os.path.join(root, item), 'r') as f:
+                        if ast_tree is None:
+                            ast_tree = parser.parse(f.read())
+                        else:
+                            ast_tree.extend(parser.parse(f.read()))
+
+        # Flatten here for temporary caching:
+        component_ref = ast.ComponentRef.from_string(model_name)
+        logger.info("Flattening model")
+        flat_tree = tree.flatten(ast_tree, component_ref)
+        logger.info("Finished flattening model")
+
+        pickle.dump(flat_tree, open(pickle_name, "wb"))
 
     # Compile
     logger.info("Generating CasADi model")
 
-    model = generator.generate(tree, model_name)
+    model = generator.generate(flat_tree, model_name)
     if compiler_options.get('check_balanced', True):
         model.check_balanced()
 
