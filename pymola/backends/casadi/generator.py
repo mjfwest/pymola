@@ -638,7 +638,7 @@ class Generator(TreeListener):
         return function
 
 
-def generate(ast_tree: ast.Tree, model_name: str) -> Model:
+def generate(flat_tree: ast.Tree, model_name: str) -> Model:
     """
     :param ast_tree: AST to generate from
     :param model_name: class to generate
@@ -646,7 +646,9 @@ def generate(ast_tree: ast.Tree, model_name: str) -> Model:
     """
     component_ref = ast.ComponentRef.from_string(model_name)
     ast_walker = TreeWalker()
-    flat_tree = flatten(ast_tree, component_ref)
+    # logger.info("Flattening model")
+    # flat_tree = flatten(ast_tree, component_ref)
+    # logger.info("Finished flattening model")
     component_ref_tuple = component_ref.to_tuple()
     casadi_gen = Generator(flat_tree, component_ref_tuple[-1])
     ast_walker.walk(casadi_gen, flat_tree)
