@@ -88,7 +88,7 @@ class Node(object):
             # Avoid infinite recursion by not handling attributes that may go
             # back up in the tree again.
             res = {key: cls.to_json(var.__dict__[key]) for key in var.__dict__.keys()
-                   if key not in ('parent', 'scope')}
+                   if key not in ('parent', 'scope', '__deepcopy__')}
         elif isinstance(var, Visibility):
             res = str(var)
         else:
@@ -368,6 +368,16 @@ class ClassModificationArgument(Node):
         self.scope = None  # type: InstanceClass
         self.redeclare = False
         super().__init__(**kwargs)
+
+    # FIXME: This is not a pretty way of avoiding memory copies it. See #62
+    # for discussion.
+    def __deepcopy__(self, memo):
+        _scope, _deepcp = self.scope, self.__deepcopy__
+        self.scope, self.__deepcopy__ = None, None
+        new = copy.deepcopy(self, memo)
+        self.scope, self.__deepcopy__ = _scope, _deepcp
+        new.scope, new.__deepcopy__ = _scope, _deepcp
+        return new
 
 
 class ExtendsClause(Node):

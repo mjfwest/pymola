@@ -190,7 +190,7 @@ class TreeWalker(object):
             getattr(listener, 'enter' + name)(tree)
         for child_name in tree.__dict__.keys():
             if isinstance(tree, ast.Class) and child_name in ('parent') or \
-                isinstance(tree, ast.ClassModificationArgument) and child_name == 'scope':
+                isinstance(tree, ast.ClassModificationArgument) and child_name in ('scope', '__deepcopy__'):
                 # Do not go up again.
                 continue
             self.handle_walk(listener, tree.__dict__[child_name])
@@ -505,13 +505,13 @@ def flatten_symbols(class_: ast.InstanceClass, instance_name='') -> ast.Class:
                 # TODO: Do we need the symbol type after this?
                 sym.type = sym.type.name
 
+    # Apply any symbol modifications if the scope of said modification is equal to that of the current class
+    apply_symbol_modifications(flat_class, class_)
+
     # now resolve all references inside the symbol definitions
     for sym_name, sym in flat_class.symbols.items():
         flat_sym = flatten_component_refs(flat_class, sym, instance_prefix)
         flat_class.symbols[sym_name] = flat_sym
-
-    # Apply any symbol modifications if the scope of said modification is equal to that of the current class
-    apply_symbol_modifications(flat_class, class_)
 
     # A set of component refs to functions
     pulled_functions = OrderedDict()

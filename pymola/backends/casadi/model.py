@@ -509,8 +509,12 @@ class Model:
                     # Work around CasADi issue #172
                     if len(self.constants) == 0:
                         constants = 0
+                    else:
+                        logger.warning('Not all constants have been eliminated.  As a result, the affine DAE expression will use a symbolic matrix, as opposed to a numerical sparse matrix.')
                     if len(self.parameters) == 0:
                         parameters = 0
+                    else:
+                        logger.warning('Not all parameters have been eliminated.  As a result, the affine DAE expression will use a symbolic matrix, as opposed to a numerical sparse matrix.')
 
                     A = Af(0, constants, parameters)
                     b = bf(0, constants, parameters)
@@ -543,11 +547,16 @@ class Model:
     @property
     def variable_metadata_function(self):
         out = []
+        zero, one = ca.MX(0), ca.MX(1) # Recycle these common nodes as much as possible.
         for variable_list in [self.states, self.alg_states, self.inputs, self.parameters, self.constants]:
             attribute_lists = [[] for i in range(len(ast.Symbol.ATTRIBUTES))]
             for variable in variable_list:
                 for attribute_list_index, attribute in enumerate(ast.Symbol.ATTRIBUTES):
                     value = ca.MX(getattr(variable, attribute))
+                    if value.is_zero():
+                        value = zero
+                    elif (value - 1).is_zero():
+                        value = one
                     value = value if value.numel() != 1 else ca.repmat(value, *variable.symbol.size())
                     attribute_lists[attribute_list_index].append(value)
             out.append(ca.horzcat(*[ca.veccat(*attribute_list) for attribute_list in attribute_lists]))
