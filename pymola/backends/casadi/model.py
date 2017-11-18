@@ -175,6 +175,15 @@ class Model:
 
             reduced_equations = []
             for eq in self.equations:
+                if eq.is_symbolic() and eq.name() in alg_states:
+                    constant = alg_states.pop(eq.name())
+                    constant.value = 0.0
+
+                    self.constants.append(constant)
+
+                    # Skip this equation
+                    continue
+
                 if eq.n_dep() == 2 and (eq.is_op(ca.OP_SUB) or eq.is_op(ca.OP_ADD)):
                     if eq.dep(0).is_symbolic() and eq.dep(0).name() in alg_states and eq.dep(1).is_constant():
                         variable = eq.dep(0)
@@ -264,6 +273,13 @@ class Model:
 
             reduced_equations = []
             for eq in self.equations:
+                if eq.is_symbolic() and eq.name() in alg_states and p.match(eq.name()):
+                    variables.append(eq)
+                    values.append(0.0)
+                    del alg_states[eq.name()]
+                    # Skip this equation
+                    continue
+
                 if eq.n_dep() == 2 and (eq.is_op(ca.OP_SUB) or eq.is_op(ca.OP_ADD)):
                     if eq.dep(0).is_symbolic() and eq.dep(0).name() in alg_states and p.match(eq.dep(0).name()):
                         variable = eq.dep(0)
@@ -298,8 +314,6 @@ class Model:
                 self.equations = ca.substitute(self.equations, variables, values)
             if len(self.initial_equations) > 0:
                 self.initial_equations = ca.substitute(self.initial_equations, variables, values)
-
-            # TODO update aliases
 
         if options.get('expand_vectors', False):
             logger.info("Expanding vectors")
@@ -507,11 +521,11 @@ class Model:
                     bf = ca.Function('bf', [states, constants, parameters], [equations])
 
                     # Work around CasADi issue #172
-                    if len(self.constants) == 0:
+                    if len(self.constants) == 0 or not ca.depends_on(equations, constants):
                         constants = 0
                     else:
                         logger.warning('Not all constants have been eliminated.  As a result, the affine DAE expression will use a symbolic matrix, as opposed to a numerical sparse matrix.')
-                    if len(self.parameters) == 0:
+                    if len(self.parameters) == 0 or not ca.depends_on(equations, parameters):
                         parameters = 0
                     else:
                         logger.warning('Not all parameters have been eliminated.  As a result, the affine DAE expression will use a symbolic matrix, as opposed to a numerical sparse matrix.')
@@ -519,7 +533,14 @@ class Model:
                     A = Af(0, constants, parameters)
                     b = bf(0, constants, parameters)
 
-                    equations = [ca.reshape(ca.mtimes(A, states), equations.shape) + b]
+                    # Replace veccat'ed states with brand new state vectors so as to avoid the value copy operations induced by veccat.
+                    self._states_vector = ca.MX.sym('states_vector', sum([s.numel() for s in self._symbols(self.states)]))
+                    self._der_states_vector = ca.MX.sym('der_states_vector', sum([s.numel() for s in self._symbols(self.der_states)]))
+                    self._alg_states_vector = ca.MX.sym('alg_states_vector', sum([s.numel() for s in self._symbols(self.alg_states)]))
+                    self._inputs_vector = ca.MX.sym('inputs_vector', sum([s.numel() for s in self._symbols(self.inputs)]))
+
+                    states_vector = ca.vertcat(self._states_vector, self._der_states_vector, self._alg_states_vector, self._inputs_vector)
+                    equations = [ca.reshape(ca.mtimes(A, states_vector), equations.shape) + b]
                     setattr(self, equation_list, equations)
 
         if options.get('expand_mx', False):
@@ -534,21 +555,33 @@ class Model:
 
     @property
     def dae_residual_function(self):
-        return ca.Function('dae_residual', [self.time, ca.veccat(*self._symbols(self.states)), ca.veccat(*self._symbols(self.der_states)),
-                                            ca.veccat(*self._symbols(self.alg_states)), ca.veccat(*self._symbols(self.inputs)), ca.veccat(*self._symbols(self.constants)),
-                                            ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.equations)] if len(self.equations) > 0 else [])
+        if hasattr(self, '_states_vector'):
+            return ca.Function('dae_residual', [self.time, self._states_vector, self._der_states_vector,
+                                                self._alg_states_vector, self._inputs_vector, ca.veccat(*self._symbols(self.constants)),
+                                                ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.equations)] if len(self.equations) > 0 else [])
+        else:
+            return ca.Function('dae_residual', [self.time, ca.veccat(*self._symbols(self.states)), ca.veccat(*self._symbols(self.der_states)),
+                                                ca.veccat(*self._symbols(self.alg_states)), ca.veccat(*self._symbols(self.inputs)), ca.veccat(*self._symbols(self.constants)),
+                                                ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.equations)] if len(self.equations) > 0 else [])
 
     # noinspection PyUnusedLocal
     @property
     def initial_residual_function(self):
-        return ca.Function('initial_residual', [self.time, ca.veccat(*self._symbols(self.states)), ca.veccat(*self._symbols(self.der_states)),
-                                            ca.veccat(*self._symbols(self.alg_states)), ca.veccat(*self._symbols(self.inputs)), ca.veccat(*self._symbols(self.constants)),
-                                            ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.initial_equations)] if len(self.initial_equations) > 0 else [])
+        if hasattr(self, '_states_vector'):
+            return ca.Function('initial_residual', [self.time, self._states_vector, self._der_states_vector,
+                                                self._alg_states_vector, self._inputs_vector, ca.veccat(*self._symbols(self.constants)),
+                                                ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.initial_equations)] if len(self.initial_equations) > 0 else [])
+        else:
+            return ca.Function('initial_residual', [self.time, ca.veccat(*self._symbols(self.states)), ca.veccat(*self._symbols(self.der_states)),
+                                                ca.veccat(*self._symbols(self.alg_states)), ca.veccat(*self._symbols(self.inputs)), ca.veccat(*self._symbols(self.constants)),
+                                                ca.veccat(*self._symbols(self.parameters))], [ca.veccat(*self.initial_equations)] if len(self.initial_equations) > 0 else [])
 
     # noinspection PyPep8Naming
     @property
     def variable_metadata_function(self):
+        in_var = ca.veccat(*self._symbols(self.parameters))
         out = []
+        is_affine = True
         zero, one = ca.MX(0), ca.MX(1) # Recycle these common nodes as much as possible.
         for variable_list in [self.states, self.alg_states, self.inputs, self.parameters, self.constants]:
             attribute_lists = [[] for i in range(len(ast.Symbol.ATTRIBUTES))]
@@ -557,9 +590,35 @@ class Model:
                     value = ca.MX(getattr(variable, attribute))
                     if value.is_zero():
                         value = zero
-                    elif (value - 1).is_zero():
+                    elif value.is_one():
                         value = one
                     value = value if value.numel() != 1 else ca.repmat(value, *variable.symbol.size())
                     attribute_lists[attribute_list_index].append(value)
-            out.append(ca.horzcat(*[ca.veccat(*attribute_list) for attribute_list in attribute_lists]))
-        return ca.Function('variable_metadata', [ca.veccat(*self._symbols(self.parameters))], out) 
+            expr = ca.horzcat(*[ca.veccat(*attribute_list) for attribute_list in attribute_lists])
+            if len(self.parameters) > 0 and isinstance(expr, ca.MX):
+                f = ca.Function('f', [in_var], [expr])
+                contains_if_else = ca.OP_IF_ELSE_ZERO in [f.instruction_id(k) for k in range(f.n_instructions())]
+                zero_hessian = ca.jacobian(ca.jacobian(expr, in_var), in_var).is_zero()
+                if contains_if_else or not zero_hessian:
+                    is_affine = False
+            out.append(expr)
+        if len(self.parameters) > 0 and is_affine:
+            # Rebuild variable metadata as a single affine expression, if all
+            # subexpressions are affine.
+            in_var_ = ca.MX.sym('in_var', in_var.shape)
+            out_ = []
+            for o in out:
+                Af = ca.Function('Af', [in_var], [ca.jacobian(o, in_var)])
+                bf = ca.Function('bf', [in_var], [o])
+
+                A = Af(0)
+                A = ca.sparsify(A)
+
+                b = bf(0)
+                b = ca.sparsify(b)
+
+                o_ = ca.reshape(ca.mtimes(A, in_var_), o.shape) + b
+                out_.append(o_)
+            out = out_
+            in_var = in_var_
+        return ca.Function('variable_metadata', [in_var], out)
